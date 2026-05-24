@@ -53,6 +53,7 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         }
         Commands::Info(args) => commands::command_info(&entries_dir, args)?,
         Commands::Tag(args) => commands::command_tag(&entries_dir, args)?,
+        Commands::Property { action } => commands::command_property(&entries_dir, action)?,
         Commands::Append {
             id,
             last,

@@ -1403,6 +1403,49 @@ mod manipulation {
 
         Ok(())
     }
+
+    #[test]
+    fn test_property_management() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // 1. Create a note
+        Command::cargo_bin("jd")?
+            .arg("Property test")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 2. Set a property
+        Command::cargo_bin("jd")?
+            .args(["property", "set", "--last=1", "status", "in-progress"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 3. Get the property
+        Command::cargo_bin("jd")?
+            .args(["property", "get", "--last=1", "status"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("in-progress"));
+
+        // 4. Delete the property
+        Command::cargo_bin("jd")?
+            .args(["property", "delete", "--last=1", "status"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 5. Verify it's gone
+        Command::cargo_bin("jd")?
+            .args(["property", "get", "--last=1", "status"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure();
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

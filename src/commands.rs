@@ -32,7 +32,8 @@ use {
 };
 
 use crate::cli::{
-    ExportArgs, ImportArgs, InfoArgs, NotebookAction, NotebookArgs, TagAction, TagArgs,
+    ExportArgs, ImportArgs, InfoArgs, NotebookAction, NotebookArgs, PropertyAction, TagAction,
+    TagArgs,
 };
 use crate::helpers::{
     self, display_note_list, get_note_path_for_action, get_notebooks_dir, get_jd_dir_root,
@@ -198,13 +199,76 @@ fn command_notebook_status() -> Result<()> {
 
 // --- Other Commands ---
 
+pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()> {
+    match action {
+        PropertyAction::Set {
+            id,
+            last,
+            name,
+            value,
+        } => {
+            let note_path = get_note_path_for_action(entries_dir, id, last)?;
+            let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
+            let mut note = parse_note_from_file(&note_path, &notebook_name)?;
+
+            note.frontmatter.fields.insert(
+                serde_yaml::Value::String(name.clone()),
+                serde_yaml::Value::String(value.clone()),
+            );
+
+            let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+            let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
+            helpers::write_note_file(&note_path, &new_content)?;
+            println!("Successfully set property '{}' for jot '{}'.", name, note.id);
+        }
+        PropertyAction::Get { id, last, name } => {
+            let note_path = get_note_path_for_action(entries_dir, id, last)?;
+            let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
+            let note = parse_note_from_file(&note_path, &notebook_name)?;
+
+            if let Some(value) = note
+                .frontmatter
+                .fields
+                .get(&serde_yaml::Value::String(name.clone()))
+            {
+                println!("{}", serde_yaml::to_string(value)?.trim());
+            } else {
+                bail!("Property '{}' not found for jot '{}'.", name, note.id);
+            }
+        }
+        PropertyAction::Delete { id, last, name } => {
+            let note_path = get_note_path_for_action(entries_dir, id, last)?;
+            let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
+            let mut note = parse_note_from_file(&note_path, &notebook_name)?;
+
+            if note
+                .frontmatter
+                .fields
+                .remove(&serde_yaml::Value::String(name.clone()))
+                .is_some()
+            {
+                let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+                let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
+                helpers::write_note_file(&note_path, &new_content)?;
+                println!(
+                    "Successfully deleted property '{}' from jot '{}'.",
+                    name, note.id
+                );
+            } else {
+                println!("Property '{}' not found on jot '{}'.", name, note.id);
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn command_append(
     entries_dir: &Path,
-    id_prefix: Option<String>,
+    id: Option<String>,
     last: Option<usize>,
     content: &str,
 ) -> Result<()> {
-    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let note_path = get_note_path_for_action(entries_dir, id, last)?;
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
     let note = parse_note_from_file(&note_path, &notebook_name)?;
 
@@ -224,11 +288,11 @@ pub fn command_append(
 
 pub fn command_prepend(
     entries_dir: &Path,
-    id_prefix: Option<String>,
+    id: Option<String>,
     last: Option<usize>,
     content: &str,
 ) -> Result<()> {
-    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let note_path = get_note_path_for_action(entries_dir, id, last)?;
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
     let mut note = parse_note_from_file(&note_path, &notebook_name)?;
 
@@ -249,11 +313,11 @@ pub fn command_prepend(
 
 pub fn command_move(
     entries_dir: &Path,
-    id_prefix: Option<String>,
+    id: Option<String>,
     last: Option<usize>,
     destination: &str,
 ) -> Result<()> {
-    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let note_path = get_note_path_for_action(entries_dir, id, last)?;
     let filename = note_path
         .file_name()
         .ok_or_else(|| anyhow!("Invalid filename"))?;
@@ -283,6 +347,7 @@ pub fn command_rename(
     new_name: &str,
 ) -> Result<()> {
     let note_path = get_note_path_for_action(entries_dir, id, last)?;
+
 
     let mut dest_filename = new_name.to_string();
     if !dest_filename.ends_with(".md") {

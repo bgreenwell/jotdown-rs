@@ -219,6 +219,11 @@ pub enum Commands {
     Info(InfoArgs),
     /// Manage tags on an existing jot.
     Tag(TagArgs),
+    /// Manage arbitrary properties in the jot's frontmatter.
+    Property {
+        #[command(subcommand)]
+        action: PropertyAction,
+    },
     /// Manage notebooks for organizing jots.
     #[command(alias = "n")]
     Notebook(NotebookArgs),
@@ -304,7 +309,48 @@ pub struct TagArgs {
     pub action: TagAction,
 }
 
-/// An enumeration of all possible tag management actions.
+/// An enumeration of all possible property-related actions.
+#[derive(Subcommand, Debug)]
+pub enum PropertyAction {
+    /// Set a property value.
+    Set {
+        /// The prefix of the jot ID to modify.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Modify the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
+        last: Option<usize>,
+        /// The name of the property.
+        name: String,
+        /// The value to set.
+        value: String,
+    },
+    /// Get a property value.
+    Get {
+        /// The prefix of the jot ID to query.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Query the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
+        last: Option<usize>,
+        /// The name of the property.
+        name: String,
+    },
+    /// Delete a property.
+    Delete {
+        /// The prefix of the jot ID to modify.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Modify the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
+        last: Option<usize>,
+        /// The name of the property.
+        name: String,
+    },
+}
+
+/// An enumeration of all possible tag-related actions.
+
 #[derive(Subcommand, Debug)]
 pub enum TagAction {
     /// Add one or more tags to a jot.

@@ -31,7 +31,7 @@ pub struct TaskStats {
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Frontmatter {
     /// A list of tags associated with the note.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
 
     // Represents the pinned status of a note.
@@ -39,6 +39,10 @@ pub struct Frontmatter {
     // `pinned: false` from being written to files, keeping them clean.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
+
+    /// Arbitrary additional fields in the frontmatter.
+    #[serde(flatten)]
+    pub fields: serde_yaml::Mapping,
 }
 
 /// Represents a fully parsed jot note, including its metadata and content.
