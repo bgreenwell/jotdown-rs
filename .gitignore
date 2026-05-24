@@ -6,7 +6,7 @@
 # This is the most important rule in any Rust project.
 target/
 
-# Cargo.lock is intentionally NOT ignored. For a binary application like lstr,
+# Cargo.lock is intentionally NOT ignored. For a binary application like jotdown-rs,
 # committing Cargo.lock is crucial because it ensures that every developer
 # (and your CI server) uses the exact same versions of all dependencies,
 # guaranteeing reproducible builds.
@@ -72,13 +72,9 @@ ehthumbs_vista.db
 # Ignore all directories with _files suffix
 *_files/
 
-# =============================================================================
-# AI Assistant Contributing Guidelines
-# =============================================================================
-
-# AI assistant contributing guidelines - keep these private
-CLAUDE.md
-GEMINI.md
+# Local data and history
+my_jots.csv
+history.txt
 
 # =============================================================================
 # Local Working Files
@@ -87,3 +83,4 @@ GEMINI.md
 # Agent working directories and AI-generated planning artifacts
 .agents/
 github_issues/
+test_jd/
