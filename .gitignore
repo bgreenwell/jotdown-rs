@@ -84,3 +84,6 @@ history.txt
 .agents/
 github_issues/
 test_jd/
+
+# Local working notes (not for version control)
+TODO.md

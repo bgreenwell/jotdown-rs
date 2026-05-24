@@ -1,6 +1,6 @@
 # jotdown-rs
 
-`jotdown-rs` is a minimalist command-line jotting utility written in Rust. All operations are performed using the `jd` command.
+`jotdown-rs` is a fast, minimalist command-line tool for capturing thoughts without friction. The core workflow is a single command: type `jd 'your thought'` and move on. Everything else — notebooks, encryption, git sync, templates — is available when you need it and invisible when you don't.
 
 [![CI Status](https://github.com/bgreenwell/rjot/actions/workflows/rust.yml/badge.svg)](https://github.com/bgreenwell/rjot/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -14,19 +14,27 @@
 * **CLI-first**: The terminal is the primary interface for capturing and retrieving text.
 * **Plain text storage**: Data is stored as standard Markdown files. Your notes remain portable and readable without `jd`.
 * **Data ownership**: All notes stay local. There are no proprietary databases or mandatory sync services.
+* **Progressive complexity**: The default experience is intentionally simple. Power-user features (notebooks, encryption, git sync, templates) layer on top without affecting the core workflow.
 
 ## Features
 
-* **Instant capture**: Create a new jot directly from command-line arguments.
-* **Stdin support**: Pipe multiline content directly into `jd` from other commands.
-* **Multiple notebooks**: Organize jots into separate collections (e.g., `work`, `personal`).
-* **Task management**: Create markdown-formatted tasks and view pending items across notebooks.
-* **Editor integration**: Open your `$EDITOR` for longer entries with template support.
-* **Full-text search**: Search across the active notebook or globally across all notebooks.
-* **Time-based views**: Filter notes by date, week, or specific date ranges.
-* **Note management**: Show, edit, rename, tag, or delete notes using unique ID prefixes or recency flags (`--last`).
-* **Encryption**: Optional on-disk encryption using the `age` format.
-* **Git integration**: Built-in support for versioning your notes.
+### Core — always available, no setup required
+
+* **Instant capture**: `jd 'your thought'` creates a timestamped note and returns immediately.
+* **Stdin support**: Pipe content directly into `jd` from other commands or scripts.
+* **Full-text search**: Find notes by keyword across the active notebook.
+* **Time-based views**: Filter notes by today, yesterday, this week, or a specific date range.
+* **Note management**: Show, edit, rename, tag, pin, or delete notes by ID prefix or recency (`--last`).
+* **Task tracking**: Create Markdown-formatted tasks and list all pending items at a glance.
+
+### Power user — opt-in, zero overhead when not used
+
+* **Multiple notebooks**: Organize notes into named collections (e.g., `work`, `personal`). The default notebook requires no configuration.
+* **Templates**: Open your `$EDITOR` with pre-filled, context-aware content using built-in or custom variables.
+* **Encryption**: Optional on-disk encryption via the `age` format. Notes are stored as plain text until you opt in.
+* **Git integration**: Stage, commit, and push your notes to a remote with a single `jd sync` command.
+* **Import / export**: Back up or transfer notebooks as ZIP archives or JSON files.
+* **Interactive shell**: A persistent `jd shell` session with tab-completion and command history.
 
 ## Installation
 
