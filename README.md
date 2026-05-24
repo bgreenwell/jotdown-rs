@@ -271,6 +271,7 @@ Since a child process cannot modify the parent shell's environment, use `eval` t
 
 ```sh
 ❯ jd today
+❯ jd yesterday
 ❯ jd week
 ❯ jd on 2025-05-01..2025-05-31
 ```
@@ -310,6 +311,47 @@ Renaming updates the filename and the `title` field in the note's frontmatter if
 
 ```sh
 ❯ jd delete 2025-06-08
+```
+
+### Modifying note content
+
+**1. Append or prepend text:**
+Add text to the beginning or end of a note without opening an editor.
+
+```sh
+# Append to the most recent note
+❯ jd append --last 'Added this to the end'
+
+# Prepend to a specific note (below the frontmatter)
+❯ jd prepend -i 2026-05-23 'Important update at the top'
+```
+
+**2. Move a note between notebooks:**
+
+```sh
+❯ jd move --last 'personal'
+```
+
+### Managing properties
+
+Notes support arbitrary key-value pairs in their YAML frontmatter. These can be managed using the `property` command.
+
+**1. Set a property:**
+
+```sh
+❯ jd property set --last project "Alpha"
+```
+
+**2. Get a property value:**
+
+```sh
+❯ jd property get --last project
+```
+
+**3. Delete a property:**
+
+```sh
+❯ jd property delete --last project
 ```
 
 ### Managing tasks
