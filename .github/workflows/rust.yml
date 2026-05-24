@@ -1,4 +1,4 @@
-# Enhanced CI/CD pipeline for rjot
+# Enhanced CI/CD pipeline for jd
 name: CI
 
 on:
@@ -175,7 +175,7 @@ jobs:
       with:
         file: lcov.info
         flags: unittests
-        name: codecov-rjot
+        name: codecov-jd
         fail_ci_if_error: false
         verbose: true
       env:

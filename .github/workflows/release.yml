@@ -1,4 +1,4 @@
-# Release workflow - builds and publishes rjot releases
+# Release workflow - builds and publishes jd releases
 name: Release
 
 on:
@@ -59,19 +59,19 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            name: rjot-x86_64-unknown-linux-musl
+            name: jd-x86_64-unknown-linux-musl
           - os: ubuntu-latest  
             target: aarch64-unknown-linux-musl
-            name: rjot-aarch64-unknown-linux-musl
+            name: jd-aarch64-unknown-linux-musl
           - os: macos-latest
             target: x86_64-apple-darwin
-            name: rjot-x86_64-apple-darwin
+            name: jd-x86_64-apple-darwin
           - os: macos-latest
             target: aarch64-apple-darwin
-            name: rjot-aarch64-apple-darwin
+            name: jd-aarch64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            name: rjot-x86_64-pc-windows-msvc.exe
+            name: jd-x86_64-pc-windows-msvc.exe
 
     runs-on: ${{ matrix.os }}
     
@@ -134,7 +134,7 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: |
         cd target/${{ matrix.target }}/release
-        tar czf ${{ matrix.name }}.tar.gz rjot
+        tar czf ${{ matrix.name }}.tar.gz jd
         echo "ASSET_PATH=target/${{ matrix.target }}/release/${{ matrix.name }}.tar.gz" >> $GITHUB_ENV
         echo "ASSET_NAME=${{ matrix.name }}.tar.gz" >> $GITHUB_ENV
 
@@ -142,7 +142,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         cd target/${{ matrix.target }}/release
-        Compress-Archive -Path rjot.exe -DestinationPath ${{ matrix.name }}.zip
+        Compress-Archive -Path jd.exe -DestinationPath ${{ matrix.name }}.zip
         echo "ASSET_PATH=target/${{ matrix.target }}/release/${{ matrix.name }}.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
         echo "ASSET_NAME=${{ matrix.name }}.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 

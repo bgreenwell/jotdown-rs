@@ -1,9 +1,13 @@
 [package]
-name = "rjot"
+name = "jotdown-rs"
 version = "0.1.0"
 authors = ["Brandon Greenwell <greenwell.brandon@gmail.com>"]
 edition = "2021"
 description = "A minimalist, command-line jotting utility that's fast, private, and git-friendly."
+
+[[bin]]
+name = "jd"
+path = "src/main.rs"
 license = "MIT"
 repository = "https://github.com/bgreenwell/rjot"
 readme = "README.md"

@@ -1,9 +1,3 @@
-//! This module contains the logic for executing each subcommand.
-//!
-//! Each public function corresponds to a command defined in the `cli` module.
-//! It uses functions from the `helpers` module to interact with the file system
-//! and perform other utility tasks.
-
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -15,6 +9,7 @@ use age::{secrecy::ExposeSecret, x25519, Decryptor, Identity};
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{Datelike, Local, NaiveDate};
 use clap::Parser;
+use dirs;
 use git2::{Cred, PushOptions, RemoteCallbacks, Repository, Signature};
 use rand::Rng;
 use rustyline::completion::Completer;
@@ -40,7 +35,7 @@ use crate::cli::{
     ExportArgs, ImportArgs, InfoArgs, NotebookAction, NotebookArgs, TagAction, TagArgs,
 };
 use crate::helpers::{
-    self, display_note_list, get_note_path_for_action, get_notebooks_dir, get_rjot_dir_root,
+    self, display_note_list, get_note_path_for_action, get_notebooks_dir, get_jd_dir_root,
     get_templates_dir, parse_note_from_file, Frontmatter, TaskStats,
 };
 
@@ -56,14 +51,10 @@ struct JsonJot {
     content: String,
 }
 
-// Define a helper struct for rustyline autocompletion and hints.
 #[derive(Helper, Hinter, Highlighter, Validator)]
-struct RjotHelper {
-    // This can be expanded later to hold state, like a list of notebook names or tags.
-}
+struct JdHelper {}
 
-// Implement the completion logic.
-impl Completer for RjotHelper {
+impl Completer for JdHelper {
     type Candidate = String;
 
     fn complete(
@@ -159,7 +150,7 @@ fn command_notebook_new(name: &str) -> Result<()> {
 fn command_notebook_list() -> Result<()> {
     let notebooks_dir = get_notebooks_dir()?;
     let active_notebook =
-        env::var("RJOT_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
+        env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
 
     println!("Available notebooks (* indicates active):");
 
@@ -184,7 +175,7 @@ fn command_notebook_use(name: &str) -> Result<()> {
 
     if !target_notebook.exists() || !target_notebook.is_dir() {
         bail!(
-            "Notebook '{}' not found. Create it with `rjot notebook new {}`.",
+            "Notebook '{}' not found. Create it with `jd notebook new {}`.",
             name,
             name
         );
@@ -192,25 +183,25 @@ fn command_notebook_use(name: &str) -> Result<()> {
 
     // This command prints the shell command for the user to evaluate.
     // It cannot modify the parent shell's environment directly.
-    println!("export RJOT_ACTIVE_NOTEBOOK=\"{name}\"");
+    println!("export JD_ACTIVE_NOTEBOOK=\"{name}\"");
     Ok(())
 }
 
 /// Shows the currently active notebook.
 fn command_notebook_status() -> Result<()> {
     let active_notebook =
-        env::var("RJOT_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
+        env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
     println!("Active notebook: {active_notebook}");
     Ok(())
 }
 
 // --- Other Commands ---
 
-/// Enters the interactive rjot shell.
+/// Enters the interactive jd shell.
 pub fn command_shell() -> Result<()> {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     let mut active_notebook =
-        env::var("RJOT_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
+        env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
 
     let entries_dir = helpers::get_active_entries_dir(Some(active_notebook.clone()))?;
     let (note_count, _, _) = calculate_stats_for_dir(&entries_dir).unwrap_or((
@@ -252,13 +243,13 @@ pub fn command_shell() -> Result<()> {
     // Use the new oh-my-logo generated ASCII art
     let startup_message = format!(
         "\n\
-        \x1b[38;5;208m ██████╗       ██╗  ██████╗  ████████╗\x1b[0m\n\
-        \x1b[38;5;209m ██╔══██╗      ██║ ██╔═══██╗ ╚══██╔══╝\x1b[0m\n\
-        \x1b[38;5;210m ██████╔╝      ██║ ██║   ██║    ██║   \x1b[0m\n\
-        \x1b[38;5;211m ██╔══██╗ ██   ██║ ██║   ██║    ██║   \x1b[0m\n\
-        \x1b[38;5;212m ██║  ██║ ╚█████╔╝ ╚██████╔╝    ██║   \x1b[0m\n\
-        \x1b[38;5;213m ╚═╝  ╚═╝  ╚════╝   ╚═════╝     ╚═╝   \x1b[0m\n\
-        \n  \x1b[0;1mrjot v{}\x1b[0m | Today: \x1b[32m{}\x1b[0m | Stats: \x1b[33m{} notes in '{}'\x1b[0m\n  \
+        \x1b[38;5;208m      ██╗ ██████╗ \x1b[0m\n\
+        \x1b[38;5;209m      ██║ ██╔══██╗\x1b[0m\n\
+        \x1b[38;5;210m      ██║ ██║  ██║\x1b[0m\n\
+        \x1b[38;5;211m ██   ██║ ██║  ██║\x1b[0m\n\
+        \x1b[38;5;212m ╚█████╔╝ ██████╔╝\x1b[0m\n\
+        \x1b[38;5;213m  ╚════╝  ╚═════╝ \x1b[0m\n\
+        \n  \x1b[0;1mjd v{}\x1b[0m | Today: \x1b[32m{}\x1b[0m | Stats: \x1b[33m{} notes in '{}'\x1b[0m\n  \
         \x1b[2mTip: {}\x1b[0m\n  \
         \x1b[2mType 'exit' or 'quit' to leave the shell.\x1b[0m\n",
         VERSION,
@@ -268,19 +259,23 @@ pub fn command_shell() -> Result<()> {
         tip
     );
 
-    let helper = RjotHelper {};
+    let helper = JdHelper {};
     let mut rl = Editor::new()?;
     rl.set_helper(Some(helper));
     rl.set_completion_type(CompletionType::List);
 
-    if rl.load_history("history.txt").is_err() {
-        // Not a critical error.
+    let history_path = dirs::data_local_dir().map(|p| p.join("jd").join("history.txt"));
+    if let Some(ref path) = history_path {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = rl.load_history(path);
     }
 
     println!("{startup_message}");
 
     loop {
-        let prompt = format!("\x1b[1m\x1b[35mrjot\x1b[0m(\x1b[33m{active_notebook}\x1b[0m)> ");
+        let prompt = format!("\x1b[1m\x1b[35mjd\x1b[0m(\x1b[33m{active_notebook}\x1b[0m)> ");
         let readline = rl.readline(&prompt);
 
         match readline {
@@ -312,7 +307,7 @@ pub fn command_shell() -> Result<()> {
                     _ => {}
                 }
 
-                let mut args = vec!["rjot"];
+                let mut args = vec!["jd"];
                 args.extend(line.split_whitespace());
 
                 match crate::cli::Cli::try_parse_from(args) {
@@ -353,15 +348,17 @@ pub fn command_shell() -> Result<()> {
         }
     }
 
-    let _ = rl.save_history("history.txt");
-    println!("Exiting rjot shell.");
+    if let Some(ref path) = history_path {
+        let _ = rl.save_history(path);
+    }
+    println!("Exiting jd shell.");
     Ok(())
 }
 
-/// Initializes the `rjot` directory, optionally with Git and/or encryption.
+/// Initializes the `jd` directory, optionally with Git and/or encryption.
 pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
-    let root_dir = get_rjot_dir_root()?;
-    println!("rjot directory is at: {root_dir:?}");
+    let root_dir = get_jd_dir_root()?;
+    println!("jd directory is at: {root_dir:?}");
 
     if git {
         match Repository::init(&root_dir) {
@@ -380,7 +377,7 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
                     index.write()?;
                     let oid = index.write_tree()?;
                     let tree = repo.find_tree(oid)?;
-                    let signature = Signature::now("rjot", "rjot@localhost")?;
+                    let signature = Signature::now("jd", "jd@localhost")?;
                     repo.commit(
                         Some("HEAD"),
                         &signature,
@@ -424,7 +421,7 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
 /// Permanently decrypts all notes in ALL notebooks. It no longer takes
 /// an `entries_dir` argument as it operates globally.
 pub fn command_decrypt(force: bool) -> Result<()> {
-    let root_dir = get_rjot_dir_root()?;
+    let root_dir = get_jd_dir_root()?;
     let notebooks_dir = get_notebooks_dir()?;
     let identity_path = root_dir.join("identity.txt");
 
@@ -494,12 +491,12 @@ pub fn command_decrypt(force: bool) -> Result<()> {
     Ok(())
 }
 
-/// Commits and pushes all changes in the rjot Git repository to the `origin` remote.
+/// Commits and pushes all changes in the jd Git repository to the `origin` remote.
 pub fn command_sync() -> Result<()> {
-    let root_dir = get_rjot_dir_root()?;
+    let root_dir = get_jd_dir_root()?;
     let repo = Repository::open(&root_dir).map_err(|_| {
         anyhow!(
-            "rjot directory at {:?} is not a Git repository. Run `rjot init --git` first.",
+            "jd directory at {:?} is not a Git repository. Run `jd init --git` first.",
             root_dir
         )
     })?;
@@ -512,8 +509,8 @@ pub fn command_sync() -> Result<()> {
     let oid = index.write_tree()?;
     let tree = repo.find_tree(oid)?;
 
-    let signature = Signature::now("rjot", "rjot@localhost")?;
-    let commit_message = format!("rjot sync: {}", Local::now().to_rfc2822());
+    let signature = Signature::now("jd", "jd@localhost")?;
+    let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
 
     let head = repo.head();
     let parent_commits = match head {
@@ -698,7 +695,6 @@ pub fn command_new(
 }
 
 /// Opens an existing jot in the default editor.
-/// No changes needed.
 pub fn command_edit(note_path: PathBuf) -> Result<()> {
     let editor = helpers::get_editor()?;
     println!(
@@ -835,7 +831,27 @@ pub fn command_list(
 
     if tasks {
         notes.retain(|note| note.tasks.iter().any(|t| !t.completed));
-        println!("Showing jots with incomplete tasks:");
+        notes.sort_by(|a, b| b.id.cmp(&a.id));
+        notes.truncate(num_to_list);
+        if notes.is_empty() {
+            println!("\nNo jots with incomplete tasks found.");
+        } else {
+            println!("\n{:<22} TASKS", "ID");
+            println!("{:-<22} {:-<50}", "", "");
+            for note in notes {
+                let pending: Vec<&str> = note
+                    .tasks
+                    .iter()
+                    .filter(|t| !t.completed)
+                    .map(|t| t.description.as_str())
+                    .collect();
+                println!("{:<22} [ ] {}", note.id, pending[0]);
+                for task in &pending[1..] {
+                    println!("{:<22} [ ] {}", "", task);
+                }
+            }
+        }
+        return Ok(());
     }
 
     notes.sort_by(|a, b| b.id.cmp(&a.id));
@@ -900,6 +916,9 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
         if output.is_abort {
             return Ok(());
         }
+        for item in output.selected_items.iter() {
+            println!("{}", item.output());
+        }
     }
 
     Ok(())
@@ -944,14 +963,13 @@ pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool) -> Result<()>
 
 /// Filters jots by one or more tags.
 pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String]) -> Result<()> {
-    println!("Filtering by tags: {tags:?}");
     let entries = fs::read_dir(entries_dir)?;
     let mut matches = Vec::new();
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
 
     for entry in entries.filter_map(Result::ok) {
         let note = parse_note_from_file(&entry.path(), &notebook_name)?;
-        if note.frontmatter.tags.iter().any(|t| tags.contains(t)) {
+        if tags.iter().all(|t| note.frontmatter.tags.contains(t)) {
             matches.push(note);
         }
     }
@@ -1051,9 +1069,15 @@ pub fn command_on(entries_dir: &PathBuf, date_spec: &str, compile: bool) -> Resu
 }
 
 /// Displays the full content of a specific jot.
-pub fn command_show(note_path: PathBuf) -> Result<()> {
+pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     let content = helpers::read_note_file(&note_path)?;
-    println!("{content}");
+    if raw && content.starts_with("---") {
+        if let Some(end) = content.get(3..).and_then(|s| s.find("---")) {
+            print!("{}", &content[(3 + end + 3)..].trim_start());
+            return Ok(());
+        }
+    }
+    print!("{content}");
     Ok(())
 }
 
@@ -1080,23 +1104,23 @@ pub fn command_delete(note_path: PathBuf, force: bool) -> Result<()> {
 pub fn command_info(entries_dir: &PathBuf, args: InfoArgs) -> Result<()> {
     if !args.paths && !args.stats {
         println!(
-            "Please provide a flag to the info command, e.g., `rjot info --paths` or `rjot info --stats`"
+            "Please provide a flag to the info command, e.g., `jd info --paths` or `jd info --stats`"
         );
         println!("\nFor more information, try '--help'");
         return Ok(());
     }
     if args.paths {
-        println!("--- rjot paths ---");
+        println!("--- jd paths ---");
         let active_notebook =
-            env::var("RJOT_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
-        println!("Root Directory:   {:?}", helpers::get_rjot_dir_root()?);
+            env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
+        println!("Root Directory:   {:?}", helpers::get_jd_dir_root()?);
         println!("Notebooks Root:   {:?}", helpers::get_notebooks_dir()?);
         println!("Active Notebook:  {active_notebook}");
         println!("Entries:          {entries_dir:?}");
         println!("Templates:        {:?}", helpers::get_templates_dir()?);
     }
     if args.stats {
-        println!("\n--- rjot stats ---");
+        println!("\n--- jd stats ---");
 
         if args.all {
             // Stats for all notebooks

@@ -1439,6 +1439,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "jotdown-rs"
+version = "0.1.0"
+dependencies = [
+ "age",
+ "anyhow",
+ "assert_cmd",
+ "chrono",
+ "clap 4.5.39",
+ "crossbeam-channel",
+ "dirs",
+ "git2",
+ "predicates",
+ "rand",
+ "rpassword",
+ "rustyline",
+ "rustyline-derive",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "skim",
+ "tempfile",
+ "toml 0.8.23",
+ "uuid",
+ "which",
+ "zip",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2018,34 +2046,6 @@ name = "regex-syntax"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
-
-[[package]]
-name = "rjot"
-version = "0.1.0"
-dependencies = [
- "age",
- "anyhow",
- "assert_cmd",
- "chrono",
- "clap 4.5.39",
- "crossbeam-channel",
- "dirs",
- "git2",
- "predicates",
- "rand",
- "rpassword",
- "rustyline",
- "rustyline-derive",
- "serde",
- "serde_json",
- "serde_yaml",
- "skim",
- "tempfile",
- "toml 0.8.23",
- "uuid",
- "which",
- "zip",
-]
 
 [[package]]
 name = "rpassword"

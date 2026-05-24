@@ -1,8 +1,3 @@
-//! This module contains helper functions and data structures used across the application.
-//!
-//! It handles tasks like file system interactions, configuration management, note parsing,
-//! and encryption/decryption logic, centralizing common functionality.
-
 use std::env;
 use std::fs;
 use std::io::{Read, Write};
@@ -20,7 +15,6 @@ use which::which;
 
 /// Represents a single task item found within a note.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Allow dead code for now, as description will be used later
 pub struct Task {
     pub description: String,
     pub completed: bool,
@@ -67,16 +61,16 @@ struct Config {
 
 // --- Path and Editor Helpers ---
 
-/// Gets the root directory for all `rjot` data, creating it if it doesn't exist.
+/// Gets the root directory for all `jd` data, creating it if it doesn't exist.
 ///
-/// Honors the `$RJOT_DIR` environment variable if set, otherwise uses the platform-specific
+/// Honors the `$JD_DIR` environment variable if set, otherwise uses the platform-specific
 /// user config directory. It also triggers the one-time migration for legacy installations.
-pub fn get_rjot_dir_root() -> Result<PathBuf> {
-    let path = match env::var("RJOT_DIR") {
+pub fn get_jd_dir_root() -> Result<PathBuf> {
+    let path = match env::var("JD_DIR") {
         Ok(val) => PathBuf::from(val),
         Err(_) => dirs::config_dir()
             .with_context(|| "Could not find a valid config directory.")?
-            .join("rjot"),
+            .join("jd"),
     };
     if !path.exists() {
         fs::create_dir_all(&path)?;
@@ -98,7 +92,7 @@ fn handle_legacy_migration(root_dir: &Path) -> Result<()> {
     let notebooks_dir = root_dir.join("notebooks");
 
     if legacy_entries_dir.exists() && !notebooks_dir.exists() {
-        println!("rjot has been updated to support notebooks!");
+        println!("jd has been updated to support notebooks!");
         println!("Migrating your existing notes to the 'default' notebook...");
 
         fs::create_dir_all(&notebooks_dir)
@@ -115,7 +109,7 @@ fn handle_legacy_migration(root_dir: &Path) -> Result<()> {
 
 /// Gets the directory where all notebooks are stored, ensuring it exists.
 pub fn get_notebooks_dir() -> Result<PathBuf> {
-    let root_dir = get_rjot_dir_root()?;
+    let root_dir = get_jd_dir_root()?;
     let notebooks_dir = root_dir.join("notebooks");
     if !notebooks_dir.exists() {
         fs::create_dir_all(&notebooks_dir)?;
@@ -127,7 +121,7 @@ pub fn get_notebooks_dir() -> Result<PathBuf> {
 ///
 /// This is the core of the multi-notebook feature. It resolves the path based on this priority:
 /// 1. The `--notebook` command-line flag (passed in as `notebook_override`).
-/// 2. The `RJOT_ACTIVE_NOTEBOOK` environment variable.
+/// 2. The `JD_ACTIVE_NOTEBOOK` environment variable.
 /// 3. The "default" notebook if neither is set.
 ///
 /// It will automatically create the notebook directory if it doesn't exist.
@@ -136,7 +130,7 @@ pub fn get_active_entries_dir(notebook_override: Option<String>) -> Result<PathB
 
     let notebook_name = if let Some(name) = notebook_override {
         name
-    } else if let Ok(name) = env::var("RJOT_ACTIVE_NOTEBOOK") {
+    } else if let Ok(name) = env::var("JD_ACTIVE_NOTEBOOK") {
         name
     } else {
         "default".to_string()
@@ -151,7 +145,7 @@ pub fn get_active_entries_dir(notebook_override: Option<String>) -> Result<PathB
 
 /// Gets the directory where note templates are stored, ensuring it exists.
 pub fn get_templates_dir() -> Result<PathBuf> {
-    let root_dir = get_rjot_dir_root()?;
+    let root_dir = get_jd_dir_root()?;
     let templates_dir = root_dir.join("templates");
     if !templates_dir.exists() {
         fs::create_dir_all(&templates_dir)?;
@@ -191,7 +185,7 @@ pub fn get_editor() -> Result<String> {
 
 /// Writes content to a note file, encrypting it if encryption is enabled.
 pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
-    let root_dir = get_rjot_dir_root()?;
+    let root_dir = get_jd_dir_root()?;
     let config_path = root_dir.join("config.toml");
     let config: Config = if config_path.exists() {
         toml::from_str(&fs::read_to_string(config_path)?)?
@@ -206,7 +200,9 @@ pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
         let encrypted_bytes = {
             let encryptor = Encryptor::with_recipients(vec![Box::new(recipient)]);
             let mut encrypted = vec![];
-            let mut writer = encryptor.expect("REASON").wrap_output(&mut encrypted)?;
+            let mut writer = encryptor
+                .ok_or_else(|| anyhow!("Failed to create encryptor: recipient list was empty"))?
+                .wrap_output(&mut encrypted)?;
             writer.write_all(content.as_bytes())?;
             writer.finish()?;
             encrypted
@@ -220,7 +216,7 @@ pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
 
 /// Reads content from a note file, decrypting it if necessary.
 pub fn read_note_file(path: &Path) -> Result<String> {
-    let root_dir = get_rjot_dir_root()?;
+    let root_dir = get_jd_dir_root()?;
     let identity_path = root_dir.join("identity.txt");
     let file_bytes = fs::read(path)?;
 
@@ -287,7 +283,7 @@ pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
     Ok(Note {
         id,
         path: path.to_path_buf(),
-        notebook: notebook_name.to_string(), // <-- Populate the new field
+        notebook: notebook_name.to_string(),
         frontmatter,
         content: content_str,
         tasks,

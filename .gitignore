@@ -79,3 +79,11 @@ ehthumbs_vista.db
 # AI assistant contributing guidelines - keep these private
 CLAUDE.md
 GEMINI.md
+
+# =============================================================================
+# Local Working Files
+# =============================================================================
+
+# Agent working directories and AI-generated planning artifacts
+.agents/
+github_issues/

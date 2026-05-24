@@ -1,18 +1,12 @@
-//! This module defines the entire command-line interface for the `rjot` application.
-//!
-//! It uses the `clap` crate with the `derive` feature to declaratively build the CLI
-//! structure from Rust structs and enums. This includes all subcommands, arguments,
-//! and their help messages.
-
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
-/// The main CLI structure, representing the `rjot` command itself.
+/// The main CLI structure, representing the `jd` command itself.
 #[derive(Parser, Debug)]
-#[command(name = "rjot", version, about = "A minimalist, command-line journal.")]
+#[command(name = "jd", version, about = "A minimalist, command-line journal.")]
 pub struct Cli {
-    /// The subcommand to execute. If no subcommand is provided, `rjot` will
+    /// The subcommand to execute. If no subcommand is provided, `jd` will
     /// treat the input as a new note for the default action.
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -39,7 +33,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
         .ok_or_else(|| format!("invalid key-value pair: {s}"))
 }
 
-/// An enumeration of all possible subcommands `rjot` can execute.
+/// An enumeration of all possible subcommands `jd` can execute.
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Create a new jot using an editor, optionally with a template.
@@ -149,6 +143,9 @@ pub enum Commands {
         /// Show the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
         last: Option<usize>,
+        /// Print only the note body, stripping the YAML frontmatter.
+        #[arg(long, short)]
+        raw: bool,
     },
     /// Delete a jot with confirmation.
     #[command(alias = "rm")]
@@ -163,25 +160,25 @@ pub enum Commands {
         #[arg(long, short)]
         force: bool,
     },
-    /// Display information about your rjot setup.
+    /// Display information about your jd setup.
     Info(InfoArgs),
     /// Manage tags on an existing jot.
     Tag(TagArgs),
     /// Manage notebooks for organizing jots.
     #[command(alias = "n")]
     Notebook(NotebookArgs),
-    /// Initialize the rjot directory, optionally with Git and/or encryption.
+    /// Initialize the jd directory, optionally with Git and/or encryption.
     Init {
-        /// Initialize the rjot directory as a Git repository.
+        /// Initialize the jd directory as a Git repository.
         #[arg(long)]
         git: bool,
-        /// Encrypt the rjot directory with a new identity.
+        /// Encrypt the jd directory with a new identity.
         #[arg(long)]
         encrypt: bool,
     },
     /// Commit and push changes to a remote Git repository.
     Sync,
-    /// Permanently decrypt all notes in the rjot directory.
+    /// Permanently decrypt all notes in the jd directory.
     Decrypt {
         /// Force decryption without a confirmation prompt.
         #[arg(long, short)]
@@ -193,7 +190,7 @@ pub enum Commands {
     /// Import a notebook from a ZIP archive or a JSON file.
     Import(ImportArgs),
 
-    /// Enter the interactive rjot shell.
+    /// Enter the interactive jd shell.
     #[command(alias = "sh")]
     Shell,
 }
@@ -220,7 +217,7 @@ pub enum NotebookAction {
     List,
     /// Print the command to switch the active notebook for the current shell session.
     ///
-    /// Usage: eval $(rjot notebook use <NAME>)
+    /// Usage: eval $(jd notebook use <NAME>)
     Use {
         /// The name of the notebook to switch to.
         #[arg(required = true)]
@@ -233,7 +230,7 @@ pub enum NotebookAction {
 /// Arguments for the `info` subcommand.
 #[derive(Args, Debug)]
 pub struct InfoArgs {
-    /// Display the paths used by rjot for storage and templates.
+    /// Display the paths used by jd for storage and templates.
     #[arg(long)]
     pub paths: bool,
     /// Display statistics about your jots, like total count and tag frequency.

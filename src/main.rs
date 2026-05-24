@@ -1,8 +1,3 @@
-//! `rjot` is a minimalist, command-line journal that's fast, private, and git-friendly.
-//!
-//! This crate provides the main entrypoint and command-line parsing logic. It orchestrates
-//! the different modules to execute user commands.
-
 // Declare the modules that make up the application.
 mod cli;
 mod commands;
@@ -40,9 +35,9 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
             let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
             commands::command_edit(note_path)?;
         }
-        Commands::Show { id_prefix, last } => {
+        Commands::Show { id_prefix, last, raw } => {
             let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
-            commands::command_show(note_path)?;
+            commands::command_show(note_path, raw)?;
         }
         Commands::Delete {
             id_prefix,
@@ -71,7 +66,7 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// The main entrypoint for the rjot application.
+/// The main entrypoint for the jd application.
 fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
@@ -89,14 +84,13 @@ fn main() -> Result<()> {
         None => {
             if !cli.message.is_empty() {
                 let message = cli.message.join(" ");
-                // MOD: Resolve entries_dir here for the default action.
                 let entries_dir = helpers::get_active_entries_dir(cli.notebook)?;
                 commands::command_down(&entries_dir, &message, cli.tags)?;
             } else {
                 println!(
-                    "No message provided. Use 'rjot <MESSAGE>' or a subcommand like 'rjot list'."
+                    "No message provided. Use 'jd <MESSAGE>' or a subcommand like 'jd list'."
                 );
-                println!("\nFor more information, try 'rjot --help'");
+                println!("\nFor more information, try 'jd --help'");
             }
         }
     }
