@@ -31,6 +31,11 @@ use {
     std::{borrow::Cow, sync::Arc},
 };
 
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{Style, ThemeSet};
+use syntect::parsing::SyntaxSet;
+use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+
 use crate::cli::{
     ExportArgs, ImportArgs, InfoArgs, NotebookAction, NotebookArgs, PropertyAction, TagAction,
     TagArgs,
@@ -1078,6 +1083,7 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
     struct NoteItem {
         id: String,
         display_text: String,
+        content: String,
     }
 
     impl SkimItem for NoteItem {
@@ -1087,6 +1093,10 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
 
         fn output(&self) -> Cow<'_, str> {
             Cow::Borrowed(&self.id)
+        }
+
+        fn preview(&self, _context: PreviewContext) -> ItemPreview {
+            ItemPreview::Text(self.content.clone())
         }
     }
 
@@ -1101,6 +1111,7 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
     let options = SkimOptionsBuilder::default()
         .multi(false)
         .reverse(true)
+        .preview(Some(""))
         .build()?;
 
     type SkimChannel = (Sender<Arc<dyn SkimItem>>, Receiver<Arc<dyn SkimItem>>);
@@ -1116,6 +1127,7 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
         let item = NoteItem {
             id: note.id,
             display_text,
+            content: note.content,
         };
         let _ = tx.send(Arc::new(item));
     }
@@ -1136,7 +1148,13 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
 }
 
 /// Performs a full-text search of all jots.
-pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool, format: &str) -> Result<()> {
+pub fn command_find(
+    entries_dir: &PathBuf,
+    query: &str,
+    all: bool,
+    format: &str,
+    context: bool,
+) -> Result<()> {
     if format == "human" {
         println!("Searching for \"{query}\" in your jots...");
     }
@@ -1159,7 +1177,11 @@ pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool, format: &str)
             }
         }
         if format == "human" {
-            display_global_find_list(matches);
+            if context {
+                helpers::display_search_results_with_context(matches, query);
+            } else {
+                display_global_find_list(matches);
+            }
         } else {
             helpers::display_formatted_note_list(matches, format)?;
         }
@@ -1172,7 +1194,11 @@ pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool, format: &str)
                 matches.push(note);
             }
         }
-        helpers::display_formatted_note_list(matches, format)?;
+        if format == "human" && context {
+            helpers::display_search_results_with_context(matches, query);
+        } else {
+            helpers::display_formatted_note_list(matches, format)?;
+        }
     }
     Ok(())
 }
@@ -1303,13 +1329,29 @@ pub fn command_on(entries_dir: &PathBuf, date_spec: &str, compile: bool, format:
 /// Displays the full content of a specific jot.
 pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     let content = helpers::read_note_file(&note_path)?;
-    if raw && content.starts_with("---") {
-        if let Some(end) = content.get(3..).and_then(|s| s.find("---")) {
-            print!("{}", &content[(3 + end + 3)..].trim_start());
-            return Ok(());
+
+    if raw {
+        if content.starts_with("---") {
+            if let Some(end) = content.get(3..).and_then(|s| s.find("---")) {
+                print!("{}", &content[(3 + end + 3)..].trim_start());
+                return Ok(());
+            }
         }
+        print!("{content}");
+    } else {
+        // Try syntax highlighting for markdown
+        let ps = SyntaxSet::load_defaults_newlines();
+        let ts = ThemeSet::load_defaults();
+        let syntax = ps.find_syntax_by_extension("md").unwrap();
+        let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
+
+        for line in LinesWithEndings::from(&content) {
+            let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).unwrap();
+            let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
+            print!("{}", escaped);
+        }
+        println!("\x1b[0m"); // Reset colors
     }
-    print!("{content}");
     Ok(())
 }
 

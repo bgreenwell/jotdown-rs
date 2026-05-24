@@ -98,6 +98,10 @@ pub enum Commands {
         /// The output format (human, json, csv).
         #[arg(long, short, default_value = "human")]
         format: String,
+
+        /// Show surrounding context for matches.
+        #[arg(long, short)]
+        context: bool,
     },
     /// Interactively select a note using a fuzzy finder.
     #[command(alias = "s")]

@@ -33,6 +33,7 @@ which = "4.4.2"
 toml = "0.8"
 uuid = { version = "1.8", features = ["v4", "serde"] }
 zip = { version = "2.1", features = ["zstd"] }
+syntect = "5.3.0"
 
 # Non-Windows dependencies
 [target.'cfg(not(windows))'.dependencies]

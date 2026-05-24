@@ -360,6 +360,26 @@ pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()>
     Ok(())
 }
 
+/// Displays search results with line-by-line context.
+pub fn display_search_results_with_context(notes: Vec<Note>, query: &str) {
+    if notes.is_empty() {
+        println!("\nNo matches found.");
+        return;
+    }
+    for note in notes {
+        let mut first = true;
+        for (i, line) in note.content.lines().enumerate() {
+            if line.to_lowercase().contains(&query.to_lowercase()) {
+                if first {
+                    println!("\n--- {} ({}) ---", note.id, note.notebook);
+                    first = false;
+                }
+                println!("{:>4}: {}", i + 1, line.trim());
+            }
+        }
+    }
+}
+
 /// Formats and prints a compiled summary of notes to the console.
 pub fn compile_notes(notes: Vec<Note>) -> Result<()> {
     for note in notes {

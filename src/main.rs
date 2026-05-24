@@ -26,7 +26,8 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
             query,
             all,
             format,
-        } => commands::command_find(&entries_dir, &query, all, &format)?,
+            context,
+        } => commands::command_find(&entries_dir, &query, all, &format, context)?,
         Commands::Tags { tags, format } => {
             commands::command_tags_filter(&entries_dir, &tags, &format)?
         }
