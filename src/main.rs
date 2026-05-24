@@ -1,4 +1,3 @@
-
 mod cli;
 mod commands;
 mod helpers;
@@ -9,7 +8,6 @@ use cli::Commands;
 use std::path::PathBuf;
 
 pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
-    
     match command {
         Commands::Task { message } => commands::command_task(&entries_dir, &message)?,
         Commands::New {
@@ -95,7 +93,7 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         Commands::Decrypt { force } => commands::command_decrypt(force)?,
         Commands::Export(args) => commands::command_export(args)?,
         Commands::Import(args) => commands::command_import(args)?,
-        
+
         Commands::Shell => unreachable!(),
     }
 
@@ -106,10 +104,8 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
 fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
-    
     match cli.command {
         Some(command) => {
-            
             if let Commands::Shell = command {
                 commands::command_shell()?;
             } else {
