@@ -14,14 +14,14 @@ use which::which;
 // --- Data Structures ---
 
 /// Represents a single task item found within a note.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub description: String,
     pub completed: bool,
 }
 
 /// Holds aggregated statistics about tasks.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TaskStats {
     pub pending: usize,
     pub completed: usize,
@@ -46,7 +46,7 @@ pub struct Frontmatter {
 }
 
 /// Represents a fully parsed jot note, including its metadata and content.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Note {
     pub id: String,
     pub path: PathBuf,
@@ -325,6 +325,39 @@ pub fn display_note_list(notes: Vec<Note>) {
         let first_line = note.content.lines().next().unwrap_or("").trim();
         println!("{:<22} {}", note.id, first_line);
     }
+}
+
+/// Displays notes in the requested format (human, json, csv).
+pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()> {
+    match format {
+        "json" => {
+            let json = serde_json::to_string_pretty(&notes)?;
+            println!("{}", json);
+        }
+        "csv" => {
+            println!("id,notebook,tags,content_snippet");
+            for note in notes {
+                let tags = note.frontmatter.tags.join("|");
+                let snippet = note
+                    .content
+                    .replace('\n', " ")
+                    .chars()
+                    .take(50)
+                    .collect::<String>();
+                println!(
+                    "{},{},\"{}\",\"{}\"",
+                    note.id,
+                    note.notebook,
+                    tags,
+                    snippet.replace('"', "\"\"")
+                );
+            }
+        }
+        _ => {
+            display_note_list(notes);
+        }
+    }
+    Ok(())
 }
 
 /// Formats and prints a compiled summary of notes to the console.

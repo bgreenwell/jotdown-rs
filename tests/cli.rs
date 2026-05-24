@@ -1446,6 +1446,46 @@ mod manipulation {
 
         Ok(())
     }
+
+    #[test]
+    fn test_json_output() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("JSON test note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["list", "1", "--format", "json"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("\"content\": \"JSON test note\""));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_csv_output() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("CSV test note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["list", "1", "--format", "csv"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("CSV test note"));
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

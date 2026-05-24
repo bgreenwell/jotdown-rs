@@ -221,7 +221,12 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             helpers::write_note_file(&note_path, &new_content)?;
             println!("Successfully set property '{}' for jot '{}'.", name, note.id);
         }
-        PropertyAction::Get { id, last, name } => {
+        PropertyAction::Get {
+            id,
+            last,
+            name,
+            format,
+        } => {
             let note_path = get_note_path_for_action(entries_dir, id, last)?;
             let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
             let note = parse_note_from_file(&note_path, &notebook_name)?;
@@ -231,7 +236,11 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
                 .fields
                 .get(&serde_yaml::Value::String(name.clone()))
             {
-                println!("{}", serde_yaml::to_string(value)?.trim());
+                if format == "json" {
+                    println!("{}", serde_json::to_string(value)?);
+                } else {
+                    println!("{}", serde_yaml::to_string(value)?.trim());
+                }
             } else {
                 bail!("Property '{}' not found for jot '{}'.", name, note.id);
             }
@@ -1008,6 +1017,7 @@ pub fn command_list(
     count: Option<usize>,
     pinned: bool,
     tasks: bool,
+    format: &str,
 ) -> Result<()> {
     let num_to_list = count.unwrap_or(10);
     let entries = fs::read_dir(entries_dir)?;
@@ -1020,30 +1030,37 @@ pub fn command_list(
 
     if pinned {
         notes.retain(|note| note.frontmatter.pinned);
-        println!("Showing pinned jots:");
+        if format == "human" {
+            println!("Showing pinned jots:");
+        }
     }
 
     if tasks {
         notes.retain(|note| note.tasks.iter().any(|t| !t.completed));
         notes.sort_by(|a, b| b.id.cmp(&a.id));
         notes.truncate(num_to_list);
-        if notes.is_empty() {
-            println!("\nNo jots with incomplete tasks found.");
-        } else {
-            println!("\n{:<22} TASKS", "ID");
-            println!("{:-<22} {:-<50}", "", "");
-            for note in notes {
-                let pending: Vec<&str> = note
-                    .tasks
-                    .iter()
-                    .filter(|t| !t.completed)
-                    .map(|t| t.description.as_str())
-                    .collect();
-                println!("{:<22} [ ] {}", note.id, pending[0]);
-                for task in &pending[1..] {
-                    println!("{:<22} [ ] {}", "", task);
+
+        if format == "human" {
+            if notes.is_empty() {
+                println!("\nNo jots with incomplete tasks found.");
+            } else {
+                println!("\n{:<22} TASKS", "ID");
+                println!("{:-<22} {:-<50}", "", "");
+                for note in notes {
+                    let pending: Vec<&str> = note
+                        .tasks
+                        .iter()
+                        .filter(|t| !t.completed)
+                        .map(|t| t.description.as_str())
+                        .collect();
+                    println!("{:<22} [ ] {}", note.id, pending[0]);
+                    for task in &pending[1..] {
+                        println!("{:<22} [ ] {}", "", task);
+                    }
                 }
             }
+        } else {
+            helpers::display_formatted_note_list(notes, format)?;
         }
         return Ok(());
     }
@@ -1051,7 +1068,7 @@ pub fn command_list(
     notes.sort_by(|a, b| b.id.cmp(&a.id));
     notes.truncate(num_to_list);
 
-    display_note_list(notes);
+    helpers::display_formatted_note_list(notes, format)?;
     Ok(())
 }
 
@@ -1119,8 +1136,10 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
 }
 
 /// Performs a full-text search of all jots.
-pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool) -> Result<()> {
-    println!("Searching for \"{query}\" in your jots...");
+pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool, format: &str) -> Result<()> {
+    if format == "human" {
+        println!("Searching for \"{query}\" in your jots...");
+    }
     let mut matches = Vec::new();
 
     if all {
@@ -1139,7 +1158,11 @@ pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool) -> Result<()>
                 }
             }
         }
-        display_global_find_list(matches);
+        if format == "human" {
+            display_global_find_list(matches);
+        } else {
+            helpers::display_formatted_note_list(matches, format)?;
+        }
     } else {
         // --- LOCAL SEARCH LOGIC ---
         let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
@@ -1149,14 +1172,14 @@ pub fn command_find(entries_dir: &PathBuf, query: &str, all: bool) -> Result<()>
                 matches.push(note);
             }
         }
-        display_note_list(matches);
+        helpers::display_formatted_note_list(matches, format)?;
     }
-
     Ok(())
 }
 
+
 /// Filters jots by one or more tags.
-pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String]) -> Result<()> {
+pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String], format: &str) -> Result<()> {
     let entries = fs::read_dir(entries_dir)?;
     let mut matches = Vec::new();
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
@@ -1167,14 +1190,21 @@ pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String]) -> Result<()>
             matches.push(note);
         }
     }
-    display_note_list(matches);
+    helpers::display_formatted_note_list(matches, format)?;
     Ok(())
 }
 
 /// A helper function for all date-based filtering.
-pub fn command_by_date_filter(entries_dir: &PathBuf, date: NaiveDate, compile: bool) -> Result<()> {
+pub fn command_by_date_filter(
+    entries_dir: &PathBuf,
+    date: NaiveDate,
+    compile: bool,
+    format: &str,
+) -> Result<()> {
     let date_prefix = date.format("%Y-%m-%d").to_string();
-    println!("Finding jots from {date_prefix}...");
+    if format == "human" {
+        println!("Finding jots from {date_prefix}...");
+    }
     let mut matches = Vec::new();
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
 
@@ -1191,35 +1221,39 @@ pub fn command_by_date_filter(entries_dir: &PathBuf, date: NaiveDate, compile: b
     if compile {
         helpers::compile_notes(matches)?
     } else {
-        display_note_list(matches)
+        helpers::display_formatted_note_list(matches, format)?;
     }
     Ok(())
 }
 
 /// Lists jots created today.
-pub fn command_today(entries_dir: &PathBuf, compile: bool) -> Result<()> {
-    command_by_date_filter(entries_dir, Local::now().date_naive(), compile)
+pub fn command_today(entries_dir: &PathBuf, compile: bool, format: &str) -> Result<()> {
+    command_by_date_filter(entries_dir, Local::now().date_naive(), compile, format)
 }
 
 /// Lists jots created yesterday.
-pub fn command_yesterday(entries_dir: &PathBuf, compile: bool) -> Result<()> {
+pub fn command_yesterday(entries_dir: &PathBuf, compile: bool, format: &str) -> Result<()> {
     let yesterday = Local::now().date_naive() - chrono::Duration::days(1);
-    command_by_date_filter(entries_dir, yesterday, compile)
+    command_by_date_filter(entries_dir, yesterday, compile, format)
 }
 
 /// Lists jots created in the current week.
-pub fn command_by_week(entries_dir: &PathBuf, compile: bool) -> Result<()> {
+pub fn command_by_week(entries_dir: &PathBuf, compile: bool, format: &str) -> Result<()> {
     let today = Local::now().date_naive();
     let week_start = today - chrono::Duration::days(today.weekday().num_days_from_sunday() as i64);
-    println!("Finding jots from this week (starting {week_start})...");
+    if format == "human" {
+        println!("Finding jots from this week (starting {week_start})...");
+    }
     let mut matches = Vec::new();
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
 
     for entry in fs::read_dir(entries_dir)?.filter_map(Result::ok) {
         let filename = entry.file_name().to_string_lossy().to_string();
-        if let Ok(date) = NaiveDate::parse_from_str(&filename[0..10], "%Y-%m-%d") {
-            if date >= week_start && date <= today {
-                matches.push(parse_note_from_file(&entry.path(), &notebook_name)?);
+        if filename.len() >= 10 {
+            if let Ok(date) = NaiveDate::parse_from_str(&filename[0..10], "%Y-%m-%d") {
+                if date >= week_start && date <= today {
+                    matches.push(parse_note_from_file(&entry.path(), &notebook_name)?);
+                }
             }
         }
     }
@@ -1227,37 +1261,41 @@ pub fn command_by_week(entries_dir: &PathBuf, compile: bool) -> Result<()> {
     if compile {
         helpers::compile_notes(matches)?
     } else {
-        display_note_list(matches)
+        helpers::display_formatted_note_list(matches, format)?;
     }
     Ok(())
 }
 
 /// Lists jots from a specific date or date range.
-pub fn command_on(entries_dir: &PathBuf, date_spec: &str, compile: bool) -> Result<()> {
+pub fn command_on(entries_dir: &PathBuf, date_spec: &str, compile: bool, format: &str) -> Result<()> {
     let mut matches = Vec::new();
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
 
     if let Some((start_str, end_str)) = date_spec.split_once("..") {
         let start_date = NaiveDate::parse_from_str(start_str, "%Y-%m-%d")?;
         let end_date = NaiveDate::parse_from_str(end_str, "%Y-%m-%d")?;
-        println!("Finding jots from {start_date} to {end_date}...");
+        if format == "human" {
+            println!("Finding jots from {start_date} to {end_date}...");
+        }
         for entry in fs::read_dir(entries_dir)?.filter_map(Result::ok) {
             let filename = entry.file_name().to_string_lossy().to_string();
-            if let Ok(date) = NaiveDate::parse_from_str(&filename[0..10], "%Y-%m-%d") {
-                if date >= start_date && date <= end_date {
-                    matches.push(parse_note_from_file(&entry.path(), &notebook_name)?);
+            if filename.len() >= 10 {
+                if let Ok(date) = NaiveDate::parse_from_str(&filename[0..10], "%Y-%m-%d") {
+                    if date >= start_date && date <= end_date {
+                        matches.push(parse_note_from_file(&entry.path(), &notebook_name)?);
+                    }
                 }
             }
         }
     } else {
         let date = NaiveDate::parse_from_str(date_spec, "%Y-%m-%d")?;
-        return command_by_date_filter(entries_dir, date, compile);
+        return command_by_date_filter(entries_dir, date, compile, format);
     }
     matches.sort_by(|a, b| a.id.cmp(&b.id));
     if compile {
         helpers::compile_notes(matches)?
     } else {
-        display_note_list(matches)
+        helpers::display_formatted_note_list(matches, format)?;
     }
     Ok(())
 }

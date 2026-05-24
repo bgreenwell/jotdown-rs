@@ -56,6 +56,9 @@ pub enum Commands {
         /// A flag to show only jots containing incomplete tasks.
         #[arg(long)] // Or short('t') if you prefer
         tasks: bool,
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// Pin a jot.
     Pin {
@@ -63,7 +66,7 @@ pub enum Commands {
         #[arg(group = "target", required = true)]
         id_prefix: Option<String>,
         /// Pin the Nth most recent jot (e.g., --last=1 or just --last).
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
     },
     /// Unpin a jot.
@@ -72,7 +75,7 @@ pub enum Commands {
         #[arg(group = "target", required = true)]
         id_prefix: Option<String>,
         /// Unpin the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
     },
     /// Create a new jot formatted as a task.
@@ -91,6 +94,10 @@ pub enum Commands {
         /// Search across all notebooks.
         #[arg(long, short)] // Or --global if you prefer
         all: bool,
+
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// Interactively select a note using a fuzzy finder.
     #[command(alias = "s")]
@@ -101,6 +108,10 @@ pub enum Commands {
         /// Tags to filter by (can be comma-separated or space-separated).
         #[arg(required = true, value_delimiter = ',')]
         tags: Vec<String>,
+
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// Append text to an existing jot.
     Append {
@@ -108,7 +119,7 @@ pub enum Commands {
         #[arg(long, short, group = "target")]
         id: Option<String>,
         /// Append to the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The text to append.
         #[arg(required = true)]
@@ -120,7 +131,7 @@ pub enum Commands {
         #[arg(long, short, group = "target")]
         id: Option<String>,
         /// Prepend to the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The text to prepend.
         #[arg(required = true)]
@@ -132,7 +143,7 @@ pub enum Commands {
         #[arg(long, short, group = "target")]
         id: Option<String>,
         /// Move the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The destination notebook name.
         #[arg(required = true)]
@@ -144,7 +155,7 @@ pub enum Commands {
         #[arg(long, short, group = "target")]
         id: Option<String>,
         /// Rename the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The new name for the jot (used for the filename).
         #[arg(required = true)]
@@ -162,16 +173,25 @@ pub enum Commands {
         /// Compile all of today's jots into a single summary.
         #[arg(long, short)]
         compile: bool,
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// List jots from yesterday.
     Yesterday {
         #[arg(long, short)]
         compile: bool,
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// List jots from this week.
     Week {
         #[arg(long, short)]
         compile: bool,
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// List jots from a specific date or date range.
     On {
@@ -180,6 +200,9 @@ pub enum Commands {
         date_spec: String,
         #[arg(long, short)]
         compile: bool,
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// Open an existing jot in the default editor.
     Edit {
@@ -187,7 +210,7 @@ pub enum Commands {
         #[arg(group = "target", required = true)]
         id_prefix: Option<String>,
         /// Edit the Nth most recent jot (e.g., --last=1 or just --last).
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
     },
     /// Display the full content of a jot in the terminal.
@@ -209,7 +232,7 @@ pub enum Commands {
         #[arg(group = "target", required = true)]
         id_prefix: Option<String>,
         /// Delete the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// Force deletion without a confirmation prompt.
         #[arg(long, short)]
@@ -335,6 +358,9 @@ pub enum PropertyAction {
         last: Option<usize>,
         /// The name of the property.
         name: String,
+        /// The output format (human, json, csv).
+        #[arg(long, short, default_value = "human")]
+        format: String,
     },
     /// Delete a property.
     Delete {

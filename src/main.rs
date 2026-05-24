@@ -20,17 +20,32 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
             count,
             pinned,
             tasks,
-        } => commands::command_list(&entries_dir, count, pinned, tasks)?,
-        Commands::Find { query, all } => commands::command_find(&entries_dir, &query, all)?,
-        Commands::Tags { tags } => commands::command_tags_filter(&entries_dir, &tags)?,
+            format,
+        } => commands::command_list(&entries_dir, count, pinned, tasks, &format)?,
+        Commands::Find {
+            query,
+            all,
+            format,
+        } => commands::command_find(&entries_dir, &query, all, &format)?,
+        Commands::Tags { tags, format } => {
+            commands::command_tags_filter(&entries_dir, &tags, &format)?
+        }
         #[cfg(not(windows))]
         Commands::Select => commands::command_select(&entries_dir)?,
-        Commands::Today { compile } => commands::command_today(&entries_dir, compile)?,
-        Commands::Yesterday { compile } => commands::command_yesterday(&entries_dir, compile)?,
-        Commands::Week { compile } => commands::command_by_week(&entries_dir, compile)?,
-        Commands::On { date_spec, compile } => {
-            commands::command_on(&entries_dir, &date_spec, compile)?
+        Commands::Today { compile, format } => {
+            commands::command_today(&entries_dir, compile, &format)?
         }
+        Commands::Yesterday { compile, format } => {
+            commands::command_yesterday(&entries_dir, compile, &format)?
+        }
+        Commands::Week { compile, format } => {
+            commands::command_by_week(&entries_dir, compile, &format)?
+        }
+        Commands::On {
+            date_spec,
+            compile,
+            format,
+        } => commands::command_on(&entries_dir, &date_spec, compile, &format)?,
         Commands::Edit { id_prefix, last } => {
             let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
             commands::command_edit(note_path)?;
