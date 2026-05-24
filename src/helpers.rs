@@ -446,7 +446,11 @@ pub fn find_note_by_index_from_end(entries_dir: &Path, index: usize) -> Result<P
             total_jots
         );
     }
-    entries.sort_by_key(|e| e.file_name());
+    entries.sort_by_key(|e| {
+        e.metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
     let target_index = total_jots - index;
     entries
         .get(target_index)

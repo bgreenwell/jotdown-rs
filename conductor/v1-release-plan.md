@@ -35,8 +35,8 @@ Improving the day-to-day usability of locating information.
 *   **Fuzzy Finding Polish**: Ensure the interactive `Select` (fuzzy finder via `skim`) provides a rich preview pane showing note frontmatter and content.
 
 ## 3. Implementation Phasing
-*   **Phase 0**: Project Rename (`rjot` -> `jotdown-rs`, command `jd`). Update config, references, and environment variables.
-*   **Phase 1**: Core Data Manipulation (`append`, `prepend`, `move`) and Daily Notes.
-*   **Phase 2**: Generalized Property management (refactoring the frontmatter parsing).
-*   **Phase 3**: Structured output (`--format`) and Enhanced Search/View tools.
-*   **Phase 4**: Documentation updates, final code health check, and v1.0 release tagging.
+*   [x] **Phase 0**: Project Rename (`rjot` -> `jotdown-rs`, command `jd`). Update config, references, and environment variables. (COMPLETE)
+*   [x] **Phase 1**: Core Data Manipulation (`append`, `prepend`, `move`) and Daily Notes. (COMPLETE)
+*   [x] **Phase 2**: Generalized Property management (refactoring the frontmatter parsing). (COMPLETE)
+*   [x] **Phase 3**: Structured output (`--format`) and Enhanced Search/View tools. (COMPLETE)
+*   [x] **Phase 4**: Documentation updates, final code health check, and v1.0 release tagging. (COMPLETE)

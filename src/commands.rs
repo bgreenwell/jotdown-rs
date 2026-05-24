@@ -9,7 +9,6 @@ use age::{secrecy::ExposeSecret, x25519, Decryptor, Identity};
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{Datelike, Local, NaiveDate};
 use clap::Parser;
-use dirs;
 use git2::{Cred, PushOptions, RemoteCallbacks, Repository, Signature};
 use rand::Rng;
 use rustyline::completion::Completer;
@@ -41,8 +40,8 @@ use crate::cli::{
     TagArgs,
 };
 use crate::helpers::{
-    self, display_note_list, get_note_path_for_action, get_notebooks_dir, get_jd_dir_root,
-    get_templates_dir, parse_note_from_file, Frontmatter, TaskStats,
+    self, get_jd_dir_root, get_note_path_for_action, get_notebooks_dir, get_templates_dir,
+    parse_note_from_file, Frontmatter, TaskStats,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -82,8 +81,8 @@ impl Completer for JdHelper {
 
             let all_commands = vec![
                 "list", "find", "new", "task", "todo", "t", "today", "week", "tags", "notebook",
-                "pin", "unpin", "edit", "show", "delete", "info", "use", "exit", "quit",
-                "append", "prepend", "move", "rename", "daily",
+                "pin", "unpin", "edit", "show", "delete", "info", "use", "exit", "quit", "append",
+                "prepend", "move", "rename", "daily",
             ];
 
             for cmd in all_commands {
@@ -156,8 +155,7 @@ fn command_notebook_new(name: &str) -> Result<()> {
 /// Lists all available notebooks.
 fn command_notebook_list() -> Result<()> {
     let notebooks_dir = get_notebooks_dir()?;
-    let active_notebook =
-        env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
+    let active_notebook = env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
 
     println!("Available notebooks (* indicates active):");
 
@@ -196,8 +194,7 @@ fn command_notebook_use(name: &str) -> Result<()> {
 
 /// Shows the currently active notebook.
 fn command_notebook_status() -> Result<()> {
-    let active_notebook =
-        env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
+    let active_notebook = env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
     println!("Active notebook: {active_notebook}");
     Ok(())
 }
@@ -224,7 +221,10 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
             let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
             helpers::write_note_file(&note_path, &new_content)?;
-            println!("Successfully set property '{}' for jot '{}'.", name, note.id);
+            println!(
+                "Successfully set property '{}' for jot '{}'.",
+                name, note.id
+            );
         }
         PropertyAction::Get {
             id,
@@ -239,7 +239,7 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             if let Some(value) = note
                 .frontmatter
                 .fields
-                .get(&serde_yaml::Value::String(name.clone()))
+                .get(serde_yaml::Value::String(name.clone()))
             {
                 if format == "json" {
                     println!("{}", serde_json::to_string(value)?);
@@ -258,7 +258,7 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             if note
                 .frontmatter
                 .fields
-                .remove(&serde_yaml::Value::String(name.clone()))
+                .remove(serde_yaml::Value::String(name.clone()))
                 .is_some()
             {
                 let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
@@ -361,7 +361,8 @@ pub fn command_rename(
     new_name: &str,
 ) -> Result<()> {
     let note_path = get_note_path_for_action(entries_dir, id, last)?;
-
+    let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
+    let mut note = parse_note_from_file(&note_path, &notebook_name)?;
 
     let mut dest_filename = new_name.to_string();
     if !dest_filename.ends_with(".md") {
@@ -371,6 +372,17 @@ pub fn command_rename(
     let dest_path = entries_dir.join(&dest_filename);
     if dest_path.exists() {
         bail!("A file with name '{}' already exists.", dest_filename);
+    }
+
+    // If there's a title in the frontmatter, update it too.
+    if note.frontmatter.fields.contains_key("title") {
+        note.frontmatter.fields.insert(
+            serde_yaml::Value::String("title".to_string()),
+            serde_yaml::Value::String(new_name.to_string()),
+        );
+        let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+        let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
+        helpers::write_note_file(&note_path, &new_content)?;
     }
 
     fs::rename(&note_path, &dest_path)?;
@@ -395,10 +407,7 @@ pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
         println!("Appended to daily note: {}", filename);
     } else {
         // Create new
-        let content = format!(
-            "---\ntitle: Daily Note - {}\n---\n\n{}\n",
-            today, message
-        );
+        let content = format!("---\ntitle: Daily Note - {}\n---\n\n{}\n", today, message);
         helpers::write_note_file(&note_path, &content)?;
         println!("Created daily note: {}", filename);
     }
@@ -450,16 +459,7 @@ pub fn command_shell() -> Result<()> {
 
     // Use the new oh-my-logo generated ASCII art
     let startup_message = format!(
-        "\n\
-        \x1b[38;5;208m      ██╗ ██████╗ \x1b[0m\n\
-        \x1b[38;5;209m      ██║ ██╔══██╗\x1b[0m\n\
-        \x1b[38;5;210m      ██║ ██║  ██║\x1b[0m\n\
-        \x1b[38;5;211m ██   ██║ ██║  ██║\x1b[0m\n\
-        \x1b[38;5;212m ╚█████╔╝ ██████╔╝\x1b[0m\n\
-        \x1b[38;5;213m  ╚════╝  ╚═════╝ \x1b[0m\n\
-        \n  \x1b[0;1mjd v{}\x1b[0m | Today: \x1b[32m{}\x1b[0m | Stats: \x1b[33m{} notes in '{}'\x1b[0m\n  \
-        \x1b[2mTip: {}\x1b[0m\n  \
-        \x1b[2mType 'exit' or 'quit' to leave the shell.\x1b[0m\n",
+        "jd v{} | {} | {} jots in '{}'\nTip: {}",
         VERSION,
         chrono::Local::now().format("%Y-%m-%d"),
         note_count,
@@ -494,12 +494,19 @@ pub fn command_shell() -> Result<()> {
                     continue;
                 }
 
-                let mut parts = line.split_whitespace();
-                let command_name = parts.next().unwrap_or("");
+                let words = match shell_words::split(line) {
+                    Ok(w) => w,
+                    Err(e) => {
+                        eprintln!("Error parsing command: {e}");
+                        continue;
+                    }
+                };
+
+                let command_name = words.first().map(|s| s.as_str()).unwrap_or("");
                 match command_name {
                     "exit" | "quit" => break,
                     "use" => {
-                        if let Some(name) = parts.next() {
+                        if let Some(name) = words.get(1) {
                             let notebooks_dir = helpers::get_notebooks_dir()?;
                             if notebooks_dir.join(name).is_dir() {
                                 active_notebook = name.to_string();
@@ -516,7 +523,7 @@ pub fn command_shell() -> Result<()> {
                 }
 
                 let mut args = vec!["jd"];
-                args.extend(line.split_whitespace());
+                args.extend(words.iter().map(|s| s.as_str()));
 
                 match crate::cli::Cli::try_parse_from(args) {
                     Ok(cli) => {
@@ -828,7 +835,16 @@ pub fn command_down(entries_dir: &Path, message: &str, tags: Option<Vec<String>>
 
 /// Creates a new jot formatted as a Markdown task.
 pub fn command_task(entries_dir: &Path, message: &str) -> Result<()> {
-    let task_content = format!("- [ ] {message}");
+    let mut task_content = String::new();
+    for (i, line) in message.lines().enumerate() {
+        if i == 0 {
+            task_content.push_str("- [ ] ");
+            task_content.push_str(line);
+        } else {
+            task_content.push_str("\n      ");
+            task_content.push_str(line);
+        }
+    }
     println!("Jotting down task: \"{message}\"");
     let now = Local::now();
     let filename = now.format("%Y-%m-%d-%H%M%S.md").to_string();
@@ -1203,7 +1219,6 @@ pub fn command_find(
     Ok(())
 }
 
-
 /// Filters jots by one or more tags.
 pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String], format: &str) -> Result<()> {
     let entries = fs::read_dir(entries_dir)?;
@@ -1293,7 +1308,12 @@ pub fn command_by_week(entries_dir: &PathBuf, compile: bool, format: &str) -> Re
 }
 
 /// Lists jots from a specific date or date range.
-pub fn command_on(entries_dir: &PathBuf, date_spec: &str, compile: bool, format: &str) -> Result<()> {
+pub fn command_on(
+    entries_dir: &PathBuf,
+    date_spec: &str,
+    compile: bool,
+    format: &str,
+) -> Result<()> {
     let mut matches = Vec::new();
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
 

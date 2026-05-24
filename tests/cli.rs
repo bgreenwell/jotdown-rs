@@ -226,7 +226,7 @@ fn test_tag_management() -> TestResult {
 
     // Verify tags are actually there by using tag command or checking frontmatter (manual)
     // Actually, tag management test should verify addition and removal.
-    
+
     Command::cargo_bin("jd")?
         .args(["tag", "rm", "--last=1", "rust"])
         .env("JD_DIR", &jd_dir)
@@ -1303,7 +1303,7 @@ mod shell {
         let stdout = String::from_utf8(output.stdout)?;
         assert!(stdout.contains("██████╗")); // Check for the ASCII logo
 
-                                             // Check that the output from the `list` command is present.
+        // Check that the output from the `list` command is present.
         assert!(stdout.contains("a note for the shell test"));
         assert!(stdout.contains("Exiting jd shell."));
 
@@ -1346,7 +1346,9 @@ mod manipulation {
             .env("JD_DIR", &jd_dir)
             .assert()
             .success()
-            .stdout(predicate::str::contains("Prepended line\nInitial content\nAppended line"));
+            .stdout(predicate::str::contains(
+                "Prepended line\nInitial content\nAppended line",
+            ));
 
         Ok(())
     }
@@ -1374,7 +1376,6 @@ mod manipulation {
             .env("JD_DIR", &jd_dir)
             .assert()
             .success();
-
 
         // 3. Verify it's in the new notebook
         Command::cargo_bin("jd")?
@@ -1414,7 +1415,111 @@ mod manipulation {
             .success();
 
         // 3. Verify the file exists with the new name
-        assert!(jd_dir.join("notebooks").join("default").join("renamed-note.md").exists());
+        assert!(jd_dir
+            .join("notebooks")
+            .join("default")
+            .join("renamed-note.md")
+            .exists());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rename_daily_note_updates_title() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // 1. Create a daily note
+        Command::cargo_bin("jd")?
+            .arg("daily")
+            .arg("Daily message")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let old_path = jd_dir
+            .join("notebooks")
+            .join("default")
+            .join(format!("{}.md", today));
+        assert!(old_path.exists());
+
+        // 2. Rename it
+        Command::cargo_bin("jd")?
+            .args(["rename", "new-daily-title", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 3. Verify the file exists with the new name
+        let new_path = jd_dir
+            .join("notebooks")
+            .join("default")
+            .join("new-daily-title.md");
+        assert!(new_path.exists());
+
+        // 4. Verify the title was updated in the frontmatter
+        let content = std::fs::read_to_string(new_path)?;
+        assert!(content.contains("title: new-daily-title"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_stdin_piping() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // Use the cargo_bin helper from assert_cmd to get the path to the jd binary
+        use assert_cmd::cargo::cargo_bin;
+        let mut cmd = std::process::Command::new(cargo_bin("jd"));
+        cmd.env("JD_DIR", &jd_dir)
+            .stdin(std::process::Stdio::piped());
+
+        let mut child = cmd.spawn()?;
+        let mut stdin = child.stdin.take().expect("Failed to open stdin");
+        std::io::Write::write_all(&mut stdin, b"line 1\nline 2")?;
+        drop(stdin);
+
+        let output = child.wait_with_output()?;
+        assert!(output.status.success());
+
+        // Verify a note was created with the multiline content
+        let entries = std::fs::read_dir(jd_dir.join("notebooks").join("default"))?;
+        let mut found = false;
+        for entry in entries {
+            let content = std::fs::read_to_string(entry?.path())?;
+            if content.contains("line 1\nline 2") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_multiline_task_indentation() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // 1. Create a multiline task
+        Command::cargo_bin("jd")?
+            .arg("task")
+            .arg("line 1\nline 2")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 2. Verify the task was indented correctly
+        let entries = std::fs::read_dir(jd_dir.join("notebooks").join("default"))?;
+        let mut found = false;
+        for entry in entries {
+            let content = std::fs::read_to_string(entry?.path())?;
+            if content.contains("- [ ] line 1\n      line 2") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found);
 
         Ok(())
     }
@@ -1517,7 +1622,9 @@ mod manipulation {
             .env("JD_DIR", &jd_dir)
             .assert()
             .success()
-            .stdout(predicate::str::contains("1: This is a line with a keyword."))
+            .stdout(predicate::str::contains(
+                "1: This is a line with a keyword.",
+            ))
             .stdout(predicate::str::contains("This line is different.").not());
 
         Ok(())
@@ -1551,7 +1658,7 @@ mod daily {
         // 3. Verify file exists and has content
         let daily_path = jd_dir.join("notebooks").join("default").join(&filename);
         assert!(daily_path.exists());
-        
+
         let content = std::fs::read_to_string(daily_path)?;
         assert!(content.contains("First entry"));
         assert!(content.contains("Second entry"));

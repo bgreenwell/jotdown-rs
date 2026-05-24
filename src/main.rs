@@ -51,7 +51,11 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
             let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
             commands::command_edit(note_path)?;
         }
-        Commands::Show { id_prefix, last, raw } => {
+        Commands::Show {
+            id_prefix,
+            last,
+            raw,
+        } => {
             let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
             commands::command_show(note_path, raw)?;
         }
@@ -70,26 +74,20 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         Commands::Info(args) => commands::command_info(&entries_dir, args)?,
         Commands::Tag(args) => commands::command_tag(&entries_dir, args)?,
         Commands::Property { action } => commands::command_property(&entries_dir, action)?,
-        Commands::Append {
-            id,
-            last,
-            content,
-        } => commands::command_append(&entries_dir, id, last, &content)?,
-        Commands::Prepend {
-            id,
-            last,
-            content,
-        } => commands::command_prepend(&entries_dir, id, last, &content)?,
+        Commands::Append { id, last, content } => {
+            commands::command_append(&entries_dir, id, last, &content)?
+        }
+        Commands::Prepend { id, last, content } => {
+            commands::command_prepend(&entries_dir, id, last, &content)?
+        }
         Commands::Move {
             id,
             last,
             destination,
         } => commands::command_move(&entries_dir, id, last, &destination)?,
-        Commands::Rename {
-            id,
-            last,
-            new_name,
-        } => commands::command_rename(&entries_dir, id, last, &new_name)?,
+        Commands::Rename { id, last, new_name } => {
+            commands::command_rename(&entries_dir, id, last, &new_name)?
+        }
         Commands::Daily { message } => commands::command_daily(&entries_dir, &message)?,
         Commands::Notebook(args) => commands::command_notebook(args)?,
         Commands::Init { git, encrypt } => commands::command_init(git, encrypt)?,
@@ -125,9 +123,18 @@ fn main() -> Result<()> {
                 let entries_dir = helpers::get_active_entries_dir(cli.notebook)?;
                 commands::command_down(&entries_dir, &message, cli.tags)?;
             } else {
-                println!(
-                    "No message provided. Use 'jd <MESSAGE>' or a subcommand like 'jd list'."
-                );
+                // Check for piped input (stdin)
+                use std::io::{self, IsTerminal, Read};
+                if !io::stdin().is_terminal() {
+                    let mut buffer = String::new();
+                    io::stdin().read_to_string(&mut buffer)?;
+                    if !buffer.trim().is_empty() {
+                        let entries_dir = helpers::get_active_entries_dir(cli.notebook)?;
+                        commands::command_down(&entries_dir, &buffer, cli.tags)?;
+                        return Ok(());
+                    }
+                }
+                println!("No message provided. Use 'jd <MESSAGE>' or a subcommand like 'jd list'.");
                 println!("\nFor more information, try 'jd --help'");
             }
         }

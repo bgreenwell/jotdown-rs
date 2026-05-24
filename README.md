@@ -1,36 +1,32 @@
-# jd 
+# jd
 
-<p align="left">
-  <img src="assets/logo-banner.png" alt="jd startup banner" width="600" />
-</p>
-
-A minimalist, command-line jotting utility that's fast, private, git-friendly, and written in Rust.
+A minimalist command-line jotting utility written in Rust.
 
 [![CI Status](https://github.com/bgreenwell/jd/actions/workflows/rust.yml/badge.svg)](https://github.com/bgreenwell/jd/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform Support](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg)](https://github.com/bgreenwell/jd)
 
-## The vision
+## Design principles
 
-`jd` is a tool for capturing thoughts at the speed of typing. It's built on a few core principles:
+`jd` is built for capturing thoughts at the speed of typing.
 
-  * **CLI-first, not CLI-only**: The terminal is the most powerful and frictionless interface for capturing text. `jd` is designed to be a first-class citizen of your command line.
-  * **Plain text is sacred**: Your data is just a folder of Markdown files. It will always be readable, editable, and portable with or without `jd`. No proprietary formats, no databases, no lock-in.
-  * **You own your data**: `jd` will never push you to a proprietary sync service. It's designed from the ground up to empower you with control over your own data.
-
-This project aims to be the perfect, minimalist companion for developers, writers, and anyone who lives in the terminal.
+* **CLI-first**: The terminal is the primary interface for capturing and retrieving text.
+* **Plain text storage**: Data is stored as standard Markdown files. Your notes remain portable and readable without `jd`.
+* **Data ownership**: All notes stay local. There are no proprietary databases or mandatory sync services.
 
 ## Features
 
-  * **Instant capture**: Jot down a thought instantly from the command line.
-  * **Multiple notebooks**: Organize your jots into separate collections (e.g., `work`, `personal`, `project-x`).
-  * **Task management**: Quickly create tasks and view all pending items across a notebook.
-  * **Editor integration**: Use `jd new` to open your favorite editor (`$EDITOR`) for longer-form entries with template support.
-  * **Pinning jots**: Mark essential notes with `jd pin` to keep them readily accessible with `jd list --pinned`.
-  * **Powerful search & filtering**: Full-text search, tag-based filtering, and time-based views (`today`, `week`, `on <date>`, or `on <date-from>...<date-to>`).
-  * **Note management**: Easily `show`, `edit`, `tag`, or `delete` any note using a unique ID prefix or its recency (`--last` or `--last=3`).
-  * **Standard & configurable**: Follows platform-specific conventions for data storage and respects standard environment variables.
+* **Instant capture**: Create a new jot directly from command-line arguments.
+* **Stdin support**: Pipe multiline content directly into `jd` from other commands.
+* **Multiple notebooks**: Organize jots into separate collections (e.g., `work`, `personal`).
+* **Task management**: Create markdown-formatted tasks and view pending items across notebooks.
+* **Editor integration**: Open your `$EDITOR` for longer entries with template support.
+* **Full-text search**: Search across the active notebook or globally across all notebooks.
+* **Time-based views**: Filter notes by date, week, or specific date ranges.
+* **Note management**: Show, edit, rename, tag, or delete notes using unique ID prefixes or recency flags (`--last`).
+* **Encryption**: Optional on-disk encryption using the `age` format.
+* **Git integration**: Built-in support for versioning your notes.
 
 ## Installation
 
@@ -66,44 +62,56 @@ cargo install --path .
 
 ## Usage guide
 
-### A note on shells and quotes
+### Shells and quotes
 
-Your command-line shell (like Bash or Zsh) can interpret special characters like `!` or expand variables like `$USER` inside double quotes (`"`). This can cause unexpected behavior.
+Your command-line shell (like Bash or Zsh) can interpret special characters like `!` or expand variables like `$USER` inside double quotes (`"`).
 
-**The best practice is to always use single quotes (`'`) for your messages.** This tells the shell to treat every character literally.
+**The best practice is to use single quotes (`'`) for your messages to ensure the shell treats every character literally.**
 
 ```sh
-# GOOD: This works perfectly.
+# This works as expected
 ❯ jd 'This is a great idea!'
-
-# BAD: This will probably fail!
-❯ jd "This is a great idea!"
 ```
 
 ### Creating notes
 
-By default, all jots are created in your active notebook (which is `default` until you change it).
+Notes are created in the active notebook (default is `default`).
 
-**1. Jot down a quick note (the default action):**
+**1. Create a quick, timestamped note:**
 
 ```sh
 ❯ jd 'This is a quick thought I want to save.'
 ```
+This creates a unique file with a full timestamp (e.g., `2026-05-23-231500.md`).
 
-**2. Create a tagged, one-liner note:**
-The `--tags` (or `-t`) flag accepts space-separated or comma-separated values.
+**2. Append to a daily note:**
+
+```sh
+❯ jd daily 'Worked on the readme'
+```
+This appends the message to a single file for the entire day (e.g., `2026-05-23.md`). Use this for running logs.
+
+**3. Pipe multiline content from stdin:**
+
+```sh
+❯ echo "Line 1
+Line 2" | jd
+```
+You can also pipe the output of other commands directly into `jd` to save them as notes.
+
+**4. Create a tagged note:**
 
 ```sh
 ❯ jd 'A great idea for the project' --tags project rust
 ```
 
-**3. Create a longer note in your editor:**
+**5. Create a longer note in your editor:**
 
 ```sh
-# This opens your default $EDITOR
+# Opens $EDITOR
 ❯ jd new
 
-# Use a custom template for structured notes
+# Use a custom template
 ❯ jd new --template meeting.md
 ```
 
@@ -184,39 +192,18 @@ jd new \
   -v ticket_id=PROJ-123
 ```
 
-### Using the interactive shell
+### Interactive shell
 
-For a more immersive experience, `jd` provides a stateful interactive shell. This is a great way to perform many actions without having to type `jd` each time.
+`jd` provides an interactive shell for performing multiple actions without prefixing every command with `jd`.
 
 **1. Launch the shell:**
 
 ```sh
 ❯ jd shell
-
- ██████╗       ██╗  ██████╗  ████████╗
- ██╔══██╗      ██║ ██╔═══██╗ ╚══██╔══╝
- ██████╔╝      ██║ ██║   ██║    ██║   
- ██╔══██╗ ██   ██║ ██║   ██║    ██║   
- ██║  ██║ ╚█████╔╝ ╚██████╔╝    ██║   
- ╚═╝  ╚═╝  ╚════╝   ╚═════╝     ╚═╝   
-
-  jd v0.1.0 | Today: 2025-07-20 | Stats: 53 notes in 'default'
-  Tip: Find your templates folder and other important paths with `info --paths`.
-  Type 'exit' or 'quit' to leave the shell.
-
-jd(default)>
-````
-
-**2. Interact with `jd`:**
-Once inside, you can use all the standard `jd` commands.
-
-```sh
-jd(default)> list 5
-jd(default)> task 'My new task from the shell'
 ```
 
-**3. Switch notebooks without `eval`:**
-The shell manages the active notebook internally.
+**2. Manage notebooks in the shell:**
+The shell maintains its own active notebook state.
 
 ```sh
 jd(default)> use project-icarus
@@ -224,80 +211,63 @@ Active notebook switched to 'project-icarus'.
 jd(project-icarus)>
 ```
 
-**4. Autocompletion and history:**
-Press `Tab` to autocomplete commands or notebook names. Use the up and down arrow keys to navigate your command history.
+**3. Autocompletion and history:**
+Press `Tab` to autocomplete commands or notebook names. Use the up and down arrow keys to navigate command history.
 
 ### Working with notebooks
-
-`jd` allows you to organize your notes into separate notebooks. All commands operate on the currently active notebook.
 
 **1. Create a new notebook:**
 
 ```sh
 ❯ jd notebook new project-icarus
-Successfully created new notebook: 'project-icarus'
 ```
 
-**2. List all available notebooks:**
-An asterisk (`*`) indicates the currently active notebook.
+**2. List available notebooks:**
+An asterisk (`*`) indicates the active notebook.
 
 ```sh
 ❯ jd notebook list
-Available notebooks (* indicates active):
-  * default
-  project-icarus
 ```
 
-**3. Switch your active notebook:**
-Because a program can't change its parent shell's environment, you must use `eval` to make the change take effect for your current terminal session.
+**3. Switch the active notebook:**
+Since a child process cannot modify the parent shell's environment, use `eval` to update the `JD_ACTIVE_NOTEBOOK` variable.
 
 ```sh
 ❯ eval $(jd notebook use project-icarus)
-
-# To check which notebook is active
-❯ jd notebook status
-Active notebook: project-icarus
 ```
 
-**4. Jot in a different notebook without switching:**
-You can use the global `--notebook` flag to perform a single action in another notebook.
+**4. Perform a single action in another notebook:**
 
 ```sh
-# Even if 'project-icarus' is active, this goes to 'personal'
 ❯ jd 'Remember to buy milk' --notebook personal
 ```
 
 ### Viewing and filtering notes
 
-All viewing and filtering commands are scoped to the active notebook unless otherwise specified.
-
-**1. List a specific number of recent notes:**
-The `list` command defaults to showing 10 notes, but you can provide a number to see more or less.
+**1. List recent notes:**
 
 ```sh
 ❯ jd list
 ❯ jd list 5
-````
+```
 
 **2. Full-text search:**
-You can search within the active notebook or use the `--all` flag to search across every notebook.
 
 ```sh
-# Search for 'productivity' in the active notebook
+# Search active notebook
 ❯ jd find 'productivity'
 
-# Search for 'database' across ALL notebooks
+# Search all notebooks
 ❯ jd find 'database' --all
 ```
 
-**3. Filter by one or more tags:**
+**3. Filter by tags:**
 
 ```sh
-# Find notes with BOTH 'rust' and 'cli' tags in the active notebook
 ❯ jd tags rust,cli
 ```
 
-**4. View notes from a specific time:**
+**4. View notes by time:**
 
 ```sh
 ❯ jd today
@@ -306,7 +276,6 @@ You can search within the active notebook or use the `--all` flag to search acro
 ```
 
 **5. Compile notes into a summary:**
-Add the `--compile` flag to any time-based view to get a single Markdown summary.
 
 ```sh
 ❯ jd week --compile > weekly-summary.md
@@ -314,78 +283,65 @@ Add the `--compile` flag to any time-based view to get a single Markdown summary
 
 ### Managing specific notes
 
-These commands target a specific note within the active notebook.
-
-**1. Show the full content of a note:**
+**1. Show the content of a note:**
 
 ```sh
 # By ID prefix
-❯ jd show 2025-06-08-1345
+❯ jd show 2025-06-08
 
-# By recency (the most recent note)
+# By recency
 ❯ jd show --last
 ```
 
 **2. Edit a note:**
 
 ```sh
-# Edit the 3rd most recent note
 ❯ jd edit --last=3
 ```
 
-**3. Delete a note:**
-This command will ask for confirmation unless you use the `--force` flag.
+**3. Rename a note:**
+Renaming updates the filename and the `title` field in the note's frontmatter if it exists.
 
 ```sh
-# Delete a note by ID prefix, with a confirmation prompt
-❯ jd delete 2025-06-08-1345
+❯ jd rename 'new-title' --last
+```
+
+**4. Delete a note:**
+
+```sh
+❯ jd delete 2025-06-08
 ```
 
 ### Managing tasks
 
-Many jots are simple to-do lists. `jd` provides a quick way to create tasks and get a high-level overview of all pending items.
-
 **1. Create a task:**
-Use the `task` subcommand (or its aliases `todo` and `t`) to quickly create a new jot formatted as a Markdown task.
 
 ```sh
 ❯ jd task 'Set up the new database schema'
-❯ jd todo 'Write unit tests for the auth service'
 ```
+This creates a note formatted as a Markdown task: `- [ ] Set up the new database schema`.
 
-This creates a new note with the content `- [ ] Set up the new database schema`.
-
-**2. View all incomplete tasks:**
-Use the `--tasks` flag with the `list` command to see a list of all jots that contain one or more pending tasks.
+**2. View incomplete tasks:**
 
 ```sh
 ❯ jd list --tasks
 ```
 
-### Pinning and unpinning notes/jots
-
-Pinning is a great way to keep important notes from getting buried in your timeline.
+### Pinning and unpinning notes
 
 **1. Pin a note:**
-You can target a note by its ID or by its recency.
 
 ```sh
-# Pin a specific jot
-❯ jd pin 2025-07-09-105000
-
-# Pin the last jot you created
 ❯ jd pin --last
 ```
 
-**2. View all pinned notes:**
-Use the `--pinned` flag with the `list` command.
+**2. View pinned notes:**
 
 ```sh
 ❯ jd list --pinned
 ```
 
 **3. Unpin a note:**
-When a note is no longer critical, you can unpin it.
 
 ```sh
 ❯ jd unpin 2025-07-09-105000
@@ -393,98 +349,69 @@ When a note is no longer critical, you can unpin it.
 
 ### Managing tags
 
-Use the `tag` subcommand to modify tags on an existing note in the active notebook.
-
-**1. Add tags to a note:**
+**1. Add tags:**
 
 ```sh
-# Add 'rust' and 'idea' to the last jot
 ❯ jd tag add --last=1 rust,idea
 ```
 
-**2. Remove tags from a note:**
+**2. Remove tags:**
 
 ```sh
-# Remove the 'idea' tag from a specific jot
 ❯ jd tag rm -p 2025-06-09 idea
 ```
 
-**3. Overwrite all tags on a note:**
+**3. Overwrite tags:**
 
 ```sh
-# Replace all tags on the 2nd to last jot with 'archived'
 ❯ jd tag set --last=2 archived
 ```
 
 ### Importing and exporting notebooks
 
-`jd` allows you to export entire notebooks for backups, sharing, or migration. You can import these notebooks on another machine or into another `jd` instance.
-
 **1. Export a notebook:**
 
-You can export to a `.zip` archive or a consolidated `.json` file.
-
 ```sh
-# Export the 'work' notebook into a zip file
+# Export to zip
 jd export work --output ./work_backup.zip
 
-# Export the 'personal' notebook into a JSON file
+# Export to JSON
 jd export personal --format json --output ./personal_backup.json
 ```
 
 **2. Import a notebook:**
 
-`jd` will automatically detect the file type and create a new notebook.
-
 ```bash
-# Import from a zip file. This will create a new notebook named 'work_backup'.
 jd import ./work_backup.zip
-
-# Import from a json file. This will create a new notebook named 'personal'.
-jd import ./personal_backup.json
 ```
 
 ### Utility commands
 
-Get info about your setup:
-
 ```sh
-# Show storage paths and the active notebook
+# Show storage paths
 ❯ jd info --paths
 
-# Show note, tag, and task statistics for the active notebook
+# Show statistics
 ❯ jd info --stats
-
-# Show combined stats for ALL notebooks
-❯ jd info --stats --all
 ```
 
 ### Git integration (optional)
 
-`jd` offers a convenient, built-in way to version control your notes. The git repository is initialized at the `jd` root, meaning a single repo tracks all of your notebooks.
+**1. Initialize with Git:**
 
-#### One-time setup
+```sh
+❯ jd init --git
+```
 
-1.  **Initialize `jd` with Git:**
+**2. Link a remote:**
+Navigate to the `jd` root directory (see `jd info --paths`) and add a remote.
 
-    ```sh
-    ❯ jd init --git
-    ```
+```sh
+❯ git remote add origin git@github.com:USER/repo.git
+```
 
-2.  **Create a private remote repository:**
-    Go to GitHub (or another Git provider) and create a new, empty **private** repository.
-
-3.  **Link the remote:**
-    Navigate into your `jd` directory (`jd info --paths` will show you where) and add the remote.
-
-    ```sh
-    # Example for GitHub over SSH
-    ❯ git remote add origin git@github.com:YOUR_USERNAME/my-journal.git
-    ```
-
-#### The `sync` command
-
-Once set up, `jd sync` will automatically stage, commit, and push changes from all notebooks.
+**3. Synchronize changes:**
+`jd sync` stages, commits, and pushes changes from all notebooks.
 
 ```sh
 ❯ jd sync
@@ -492,18 +419,14 @@ Once set up, `jd sync` will automatically stage, commit, and push changes from a
 
 ### Encryption (optional)
 
-For maximum privacy, you can enable transparent, on-disk encryption for all notebooks. The encryption keys are stored globally in your `jd` root directory.
-
-**One-time setup:**
+**1. Enable encryption:**
+Notes are encrypted on-disk using the `age` format.
 
 ```sh
 ❯ jd init --encrypt
 ```
 
-**IMPORTANT:** You must back up the `identity.txt` file somewhere safe. If you lose it, your notes cannot be recovered.
-
-**Turning off encryption:**
-The `decrypt` command will permanently decrypt all notes in all notebooks.
+**2. Decrypt all notes:**
 
 ```sh
 ❯ jd decrypt
@@ -513,22 +436,22 @@ The `decrypt` command will permanently decrypt all notes in all notebooks.
 
 ### File storage location
 
-`jd` respects platform conventions and the `$JD_DIR` environment variable for all its data. By default, your journal is stored in the following locations:
+`jd` respects the `$JD_DIR` environment variable. Default locations are:
 
-* **macOS:** `~/Users/<YourUsername>/Library/Application Support/jd/`
+* **macOS:** `~/Library/Application Support/jd/`
 * **Linux:** `~/.config/jd/`
-* **Windows:** `C:\Users\<YourUsername>\AppData\Roaming\jd\`
+* **Windows:** `%AppData%\jd\`
 
-Within that root directory, your notes are organized in the `notebooks/` subdirectory.
+Notes are stored in the `notebooks/` subdirectory.
 
 ### Templates
 
-You can create custom templates for new notes by placing Markdown files in the `templates/` subdirectory inside your `jd` root folder (e.g., `~/.config/jd/templates/`). `jd` supports one variable, `{{date}}`, which will be replaced with the current timestamp when the note is created. The templating system supports several built-in variables (like `{{branch}}` and `{{uuid}}`) and allows for custom variables to be passed from the command line. For a detailed guide on how to use these advanced features, please see the "Advanced templating" section in the usage guide above.
+Place Markdown files in the `templates/` subdirectory of your `jd` root. Use variables like `{{date}}`, `{{branch}}`, and `{{uuid}}` for dynamic content. Custom variables can be passed via the `-v` flag.
 
 ## Contributing
 
-This project is open source and contributions are welcome\! Please feel free to open an issue or submit a pull request.
+Open an issue or submit a pull request on GitHub.
 
 ## License
 
-This project is licensed under the **MIT License**.
+MIT License.
