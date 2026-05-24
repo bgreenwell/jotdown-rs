@@ -1295,3 +1295,148 @@ mod shell {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod manipulation {
+    use super::*;
+
+    #[test]
+    fn test_append_and_prepend() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // 1. Create a note
+        Command::cargo_bin("jd")?
+            .arg("Initial content")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 2. Append text
+        Command::cargo_bin("jd")?
+            .args(["append", "--last=1", "Appended line"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 3. Prepend text
+        Command::cargo_bin("jd")?
+            .args(["prepend", "--last=1", "Prepended line"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 4. Verify content
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Prepended line\nInitial content\nAppended line"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_move_jot() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // 1. Create a note and a new notebook
+        Command::cargo_bin("jd")?
+            .arg("Moving this note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["notebook", "new", "work"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 2. Move the note
+        Command::cargo_bin("jd")?
+            .args(["move", "--last=1", "work"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+
+        // 3. Verify it's in the new notebook
+        Command::cargo_bin("jd")?
+            .args(["list", "--notebook", "work"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Moving this note"));
+
+        // 4. Verify it's gone from the default notebook
+        Command::cargo_bin("jd")?
+            .arg("list")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Moving this note").not());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rename_jot() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        // 1. Create a note
+        Command::cargo_bin("jd")?
+            .arg("Original")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 2. Rename it
+        Command::cargo_bin("jd")?
+            .args(["rename", "renamed-note", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 3. Verify the file exists with the new name
+        assert!(jd_dir.join("notebooks").join("default").join("renamed-note.md").exists());
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod daily {
+    use super::*;
+
+    #[test]
+    fn test_daily_note_lifecycle() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let filename = format!("{}.md", today);
+
+        // 1. Create daily note
+        Command::cargo_bin("jd")?
+            .args(["daily", "First entry"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 2. Append to daily note
+        Command::cargo_bin("jd")?
+            .args(["daily", "Second entry"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // 3. Verify file exists and has content
+        let daily_path = jd_dir.join("notebooks").join("default").join(&filename);
+        assert!(daily_path.exists());
+        
+        let content = std::fs::read_to_string(daily_path)?;
+        assert!(content.contains("First entry"));
+        assert!(content.contains("Second entry"));
+
+        Ok(())
+    }
+}

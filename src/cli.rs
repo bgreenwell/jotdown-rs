@@ -102,6 +102,61 @@ pub enum Commands {
         #[arg(required = true, value_delimiter = ',')]
         tags: Vec<String>,
     },
+    /// Append text to an existing jot.
+    Append {
+        /// The prefix of the jot ID to append to.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Append to the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        last: Option<usize>,
+        /// The text to append.
+        #[arg(required = true)]
+        content: String,
+    },
+    /// Prepend text to an existing jot (below the frontmatter).
+    Prepend {
+        /// The prefix of the jot ID to prepend to.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Prepend to the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        last: Option<usize>,
+        /// The text to prepend.
+        #[arg(required = true)]
+        content: String,
+    },
+    /// Move a jot to another notebook.
+    Move {
+        /// The prefix of the jot ID to move.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Move the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        last: Option<usize>,
+        /// The destination notebook name.
+        #[arg(required = true)]
+        destination: String,
+    },
+    /// Rename a jot (updates the filename).
+    Rename {
+        /// The prefix of the jot ID to rename.
+        #[arg(long, short, group = "target")]
+        id: Option<String>,
+        /// Rename the Nth most recent jot.
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        last: Option<usize>,
+        /// The new name for the jot (used for the filename).
+        #[arg(required = true)]
+        new_name: String,
+    },
+    /// Append text to today's daily note.
+    #[command(alias = "da")]
+    Daily {
+        /// The text to append to the daily note.
+        #[arg(required = true)]
+        message: String,
+    },
     /// List jots from today.
     Today {
         /// Compile all of today's jots into a single summary.
@@ -141,7 +196,7 @@ pub enum Commands {
         #[arg(group = "target", required = true)]
         id_prefix: Option<String>,
         /// Show the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// Print only the note body, stripping the YAML frontmatter.
         #[arg(long, short)]

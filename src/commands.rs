@@ -77,6 +77,7 @@ impl Completer for JdHelper {
             let all_commands = vec![
                 "list", "find", "new", "task", "todo", "t", "today", "week", "tags", "notebook",
                 "pin", "unpin", "edit", "show", "delete", "info", "use", "exit", "quit",
+                "append", "prepend", "move", "rename", "daily",
             ];
 
             for cmd in all_commands {
@@ -196,6 +197,134 @@ fn command_notebook_status() -> Result<()> {
 }
 
 // --- Other Commands ---
+
+pub fn command_append(
+    entries_dir: &Path,
+    id_prefix: Option<String>,
+    last: Option<usize>,
+    content: &str,
+) -> Result<()> {
+    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
+    let note = parse_note_from_file(&note_path, &notebook_name)?;
+
+    let mut current_content = helpers::read_note_file(&note_path)?;
+    if !current_content.ends_with('\n') {
+        current_content.push('\n');
+    }
+    current_content.push_str(content);
+    if !content.ends_with('\n') {
+        current_content.push('\n');
+    }
+
+    helpers::write_note_file(&note_path, &current_content)?;
+    println!("Successfully appended to jot '{}'.", note.id);
+    Ok(())
+}
+
+pub fn command_prepend(
+    entries_dir: &Path,
+    id_prefix: Option<String>,
+    last: Option<usize>,
+    content: &str,
+) -> Result<()> {
+    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
+    let mut note = parse_note_from_file(&note_path, &notebook_name)?;
+
+    // We want to prepend BELOW the frontmatter.
+    let prefix = if !content.ends_with('\n') {
+        format!("{}\n", content)
+    } else {
+        content.to_string()
+    };
+    note.content = format!("{}{}", prefix, note.content);
+
+    let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+    let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
+    helpers::write_note_file(&note_path, &new_content)?;
+    println!("Successfully prepended to jot '{}'.", note.id);
+    Ok(())
+}
+
+pub fn command_move(
+    entries_dir: &Path,
+    id_prefix: Option<String>,
+    last: Option<usize>,
+    destination: &str,
+) -> Result<()> {
+    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let filename = note_path
+        .file_name()
+        .ok_or_else(|| anyhow!("Invalid filename"))?;
+
+    let dest_dir = get_notebooks_dir()?.join(destination);
+    if !dest_dir.exists() {
+        bail!("Destination notebook '{}' does not exist.", destination);
+    }
+
+    let dest_path = dest_dir.join(filename);
+    if dest_path.exists() {
+        bail!(
+            "A note with the same name already exists in '{}'.",
+            destination
+        );
+    }
+
+    fs::rename(&note_path, &dest_path)?;
+    println!("Moved jot to notebook '{}'.", destination);
+    Ok(())
+}
+
+pub fn command_rename(
+    entries_dir: &Path,
+    id: Option<String>,
+    last: Option<usize>,
+    new_name: &str,
+) -> Result<()> {
+    let note_path = get_note_path_for_action(entries_dir, id, last)?;
+
+    let mut dest_filename = new_name.to_string();
+    if !dest_filename.ends_with(".md") {
+        dest_filename.push_str(".md");
+    }
+
+    let dest_path = entries_dir.join(&dest_filename);
+    if dest_path.exists() {
+        bail!("A file with name '{}' already exists.", dest_filename);
+    }
+
+    fs::rename(&note_path, &dest_path)?;
+    println!("Renamed jot to '{}'.", dest_filename);
+    Ok(())
+}
+
+pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
+    let today = Local::now().format("%Y-%m-%d").to_string();
+    let filename = format!("{}.md", today);
+    let note_path = entries_dir.join(&filename);
+
+    if note_path.exists() {
+        // Append to existing
+        let mut content = helpers::read_note_file(&note_path)?;
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str(message);
+        content.push('\n');
+        helpers::write_note_file(&note_path, &content)?;
+        println!("Appended to daily note: {}", filename);
+    } else {
+        // Create new
+        let content = format!(
+            "---\ntitle: Daily Note - {}\n---\n\n{}\n",
+            today, message
+        );
+        helpers::write_note_file(&note_path, &content)?;
+        println!("Created daily note: {}", filename);
+    }
+    Ok(())
+}
 
 /// Enters the interactive jd shell.
 pub fn command_shell() -> Result<()> {

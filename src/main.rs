@@ -53,6 +53,27 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         }
         Commands::Info(args) => commands::command_info(&entries_dir, args)?,
         Commands::Tag(args) => commands::command_tag(&entries_dir, args)?,
+        Commands::Append {
+            id,
+            last,
+            content,
+        } => commands::command_append(&entries_dir, id, last, &content)?,
+        Commands::Prepend {
+            id,
+            last,
+            content,
+        } => commands::command_prepend(&entries_dir, id, last, &content)?,
+        Commands::Move {
+            id,
+            last,
+            destination,
+        } => commands::command_move(&entries_dir, id, last, &destination)?,
+        Commands::Rename {
+            id,
+            last,
+            new_name,
+        } => commands::command_rename(&entries_dir, id, last, &new_name)?,
+        Commands::Daily { message } => commands::command_daily(&entries_dir, &message)?,
         Commands::Notebook(args) => commands::command_notebook(args)?,
         Commands::Init { git, encrypt } => commands::command_init(git, encrypt)?,
         Commands::Sync => commands::command_sync()?,
