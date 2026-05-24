@@ -1,11 +1,11 @@
-# jd
+# jotdown-rs
 
-A minimalist command-line jotting utility written in Rust.
+`jotdown-rs` is a minimalist command-line jotting utility written in Rust. All operations are performed using the `jd` command.
 
-[![CI Status](https://github.com/bgreenwell/jd/actions/workflows/rust.yml/badge.svg)](https://github.com/bgreenwell/jd/actions/workflows/rust.yml)
+[![CI Status](https://github.com/bgreenwell/rjot/actions/workflows/rust.yml/badge.svg)](https://github.com/bgreenwell/rjot/actions/workflows/rust.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
-[![Platform Support](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg)](https://github.com/bgreenwell/jd)
+[![Platform Support](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg)](https://github.com/bgreenwell/rjot)
 
 ## Design principles
 
@@ -53,8 +53,8 @@ This method automatically downloads, compiles, and installs `jd` on your system.
 To build the very latest version directly from the source code:
 
 ```sh
-git clone https://github.com/bgreenwell/jd.git
-cd jd
+git clone https://github.com/bgreenwell/rjot.git
+cd rjot
 cargo install --path .
 ```
 
