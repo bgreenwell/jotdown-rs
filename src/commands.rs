@@ -117,9 +117,6 @@ impl Completer for JdHelper {
     }
 }
 
-// --- Notebook Commands ---
-
-/// Handles all notebook-related subcommands.
 pub fn command_notebook(args: NotebookArgs) -> Result<()> {
     match args.action {
         NotebookAction::New { name } => command_notebook_new(&name)?,
@@ -130,7 +127,6 @@ pub fn command_notebook(args: NotebookArgs) -> Result<()> {
     Ok(())
 }
 
-/// Creates a new notebook directory.
 fn command_notebook_new(name: &str) -> Result<()> {
     // Basic sanitization to prevent directory traversal or invalid names.
     if name.contains('/') || name.contains('\\') || name == "." || name == ".." {
@@ -152,7 +148,6 @@ fn command_notebook_new(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Lists all available notebooks.
 fn command_notebook_list() -> Result<()> {
     let notebooks_dir = get_notebooks_dir()?;
     let active_notebook = env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
@@ -173,7 +168,6 @@ fn command_notebook_list() -> Result<()> {
     Ok(())
 }
 
-/// Prints the shell command to switch the active notebook.
 fn command_notebook_use(name: &str) -> Result<()> {
     let notebooks_dir = get_notebooks_dir()?;
     let target_notebook = notebooks_dir.join(name);
@@ -192,14 +186,11 @@ fn command_notebook_use(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Shows the currently active notebook.
 fn command_notebook_status() -> Result<()> {
     let active_notebook = env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
     println!("Active notebook: {active_notebook}");
     Ok(())
 }
-
-// --- Other Commands ---
 
 pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()> {
     match action {
@@ -414,7 +405,6 @@ pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
     Ok(())
 }
 
-/// Enters the interactive jd shell.
 pub fn command_shell() -> Result<()> {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
     let mut active_notebook =
@@ -570,7 +560,6 @@ pub fn command_shell() -> Result<()> {
     Ok(())
 }
 
-/// Initializes the `jd` directory, optionally with Git and/or encryption.
 pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
     let root_dir = get_jd_dir_root()?;
     println!("jd directory is at: {root_dir:?}");
@@ -706,7 +695,6 @@ pub fn command_decrypt(force: bool) -> Result<()> {
     Ok(())
 }
 
-/// Commits and pushes all changes in the jd Git repository to the `origin` remote.
 pub fn command_sync() -> Result<()> {
     let root_dir = get_jd_dir_root()?;
     let repo = Repository::open(&root_dir).map_err(|_| {
@@ -807,7 +795,6 @@ pub fn command_sync() -> Result<()> {
     Ok(())
 }
 
-/// Creates a new jot instantly from command-line arguments.
 pub fn command_down(entries_dir: &Path, message: &str, tags: Option<Vec<String>>) -> Result<()> {
     let mut content = String::new();
     if let Some(tags) = tags {
@@ -833,7 +820,6 @@ pub fn command_down(entries_dir: &Path, message: &str, tags: Option<Vec<String>>
     Ok(())
 }
 
-/// Creates a new jot formatted as a Markdown task.
 pub fn command_task(entries_dir: &Path, message: &str) -> Result<()> {
     let mut task_content = String::new();
     for (i, line) in message.lines().enumerate() {
@@ -854,7 +840,6 @@ pub fn command_task(entries_dir: &Path, message: &str) -> Result<()> {
     Ok(())
 }
 
-/// Creates a new jot by opening the default editor.
 pub fn command_new(
     entries_dir: &Path,
     template_name: Option<String>,
@@ -918,7 +903,6 @@ pub fn command_new(
     Ok(())
 }
 
-/// Opens an existing jot in the default editor.
 pub fn command_edit(note_path: PathBuf) -> Result<()> {
     let editor = helpers::get_editor()?;
     println!(
@@ -934,7 +918,6 @@ pub fn command_edit(note_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Manages tags on an existing jot.
 pub fn command_tag(entries_dir: &Path, args: TagArgs) -> Result<()> {
     let (id_prefix, last) = match &args.action {
         TagAction::Add {
@@ -1032,7 +1015,6 @@ pub fn command_unpin(
     command_toggle_pin_status(entries_dir, id_prefix, last, false)
 }
 
-/// Lists the most recent jots.
 pub fn command_list(
     entries_dir: &PathBuf,
     count: Option<usize>,
@@ -1093,7 +1075,6 @@ pub fn command_list(
     Ok(())
 }
 
-/// Interactively selects a jot using a fuzzy finder.
 #[cfg(not(windows))]
 pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
     struct NoteItem {
@@ -1163,7 +1144,6 @@ pub fn command_select(entries_dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Performs a full-text search of all jots.
 pub fn command_find(
     entries_dir: &PathBuf,
     query: &str,
@@ -1177,7 +1157,6 @@ pub fn command_find(
     let mut matches = Vec::new();
 
     if all {
-        // --- GLOBAL SEARCH LOGIC ---
         let notebooks_dir = get_notebooks_dir()?;
         for notebook_entry in fs::read_dir(notebooks_dir)?.filter_map(Result::ok) {
             if notebook_entry.path().is_dir() {
@@ -1202,7 +1181,6 @@ pub fn command_find(
             helpers::display_formatted_note_list(matches, format)?;
         }
     } else {
-        // --- LOCAL SEARCH LOGIC ---
         let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
         for entry in fs::read_dir(entries_dir)?.filter_map(Result::ok) {
             let note = parse_note_from_file(&entry.path(), &notebook_name)?;
@@ -1219,7 +1197,6 @@ pub fn command_find(
     Ok(())
 }
 
-/// Filters jots by one or more tags.
 pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String], format: &str) -> Result<()> {
     let entries = fs::read_dir(entries_dir)?;
     let mut matches = Vec::new();
@@ -1235,7 +1212,6 @@ pub fn command_tags_filter(entries_dir: &PathBuf, tags: &[String], format: &str)
     Ok(())
 }
 
-/// A helper function for all date-based filtering.
 pub fn command_by_date_filter(
     entries_dir: &PathBuf,
     date: NaiveDate,
@@ -1267,18 +1243,15 @@ pub fn command_by_date_filter(
     Ok(())
 }
 
-/// Lists jots created today.
 pub fn command_today(entries_dir: &PathBuf, compile: bool, format: &str) -> Result<()> {
     command_by_date_filter(entries_dir, Local::now().date_naive(), compile, format)
 }
 
-/// Lists jots created yesterday.
 pub fn command_yesterday(entries_dir: &PathBuf, compile: bool, format: &str) -> Result<()> {
     let yesterday = Local::now().date_naive() - chrono::Duration::days(1);
     command_by_date_filter(entries_dir, yesterday, compile, format)
 }
 
-/// Lists jots created in the current week.
 pub fn command_by_week(entries_dir: &PathBuf, compile: bool, format: &str) -> Result<()> {
     let today = Local::now().date_naive();
     let week_start = today - chrono::Duration::days(today.weekday().num_days_from_sunday() as i64);
@@ -1307,7 +1280,6 @@ pub fn command_by_week(entries_dir: &PathBuf, compile: bool, format: &str) -> Re
     Ok(())
 }
 
-/// Lists jots from a specific date or date range.
 pub fn command_on(
     entries_dir: &PathBuf,
     date_spec: &str,
@@ -1346,7 +1318,6 @@ pub fn command_on(
     Ok(())
 }
 
-/// Displays the full content of a specific jot.
 pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     let content = helpers::read_note_file(&note_path)?;
 
@@ -1375,7 +1346,6 @@ pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     Ok(())
 }
 
-/// Deletes a specific jot with user confirmation.
 pub fn command_delete(note_path: PathBuf, force: bool) -> Result<()> {
     let filename = note_path.file_name().unwrap().to_string_lossy();
     if !force {
@@ -1393,8 +1363,6 @@ pub fn command_delete(note_path: PathBuf, force: bool) -> Result<()> {
     Ok(())
 }
 
-/// Displays information and statistics about the journal.
-/// This command is notebook-aware.
 pub fn command_info(entries_dir: &PathBuf, args: InfoArgs) -> Result<()> {
     if !args.paths && !args.stats {
         println!(
@@ -1452,7 +1420,6 @@ pub fn command_info(entries_dir: &PathBuf, args: InfoArgs) -> Result<()> {
     Ok(())
 }
 
-/// Formats and prints a list of notes from a global search.
 pub fn display_global_find_list(notes: Vec<helpers::Note>) {
     if notes.is_empty() {
         println!("\nNo jots found.");
@@ -1467,7 +1434,6 @@ pub fn display_global_find_list(notes: Vec<helpers::Note>) {
     }
 }
 
-/// Helper function to calculate stats for a given directory.
 fn calculate_stats_for_dir(dir: &Path) -> Result<(usize, HashMap<String, usize>, TaskStats)> {
     let mut note_count = 0;
     let mut tag_counts: HashMap<String, usize> = HashMap::new();
@@ -1493,7 +1459,6 @@ fn calculate_stats_for_dir(dir: &Path) -> Result<(usize, HashMap<String, usize>,
     Ok((note_count, tag_counts, task_stats))
 }
 
-/// Helper function to print formatted stats.
 fn print_stats(note_count: usize, tag_counts: HashMap<String, usize>, task_stats: TaskStats) {
     println!("Total jots: {note_count}");
     if !tag_counts.is_empty() {
@@ -1512,7 +1477,6 @@ fn print_stats(note_count: usize, tag_counts: HashMap<String, usize>, task_stats
     }
 }
 
-/// Exports a notebook to a specified file format.
 pub fn command_export(args: ExportArgs) -> Result<()> {
     let notebooks_dir = get_notebooks_dir()?;
     let notebook_path = notebooks_dir.join(&args.notebook_name);
@@ -1577,7 +1541,6 @@ fn export_to_json(notebook_path: &Path, notebook_name: &str, output_path: &Path)
     Ok(())
 }
 
-/// Imports a notebook from a specified file.
 pub fn command_import(args: ImportArgs) -> Result<()> {
     let extension = args
         .file_path

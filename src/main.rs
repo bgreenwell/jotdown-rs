@@ -1,4 +1,4 @@
-// Declare the modules that make up the application.
+
 mod cli;
 mod commands;
 mod helpers;
@@ -9,7 +9,7 @@ use cli::Commands;
 use std::path::PathBuf;
 
 pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
-    // This logic is now decoupled from where the command originates (main or shell)
+    
     match command {
         Commands::Task { message } => commands::command_task(&entries_dir, &message)?,
         Commands::New {
@@ -95,7 +95,7 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         Commands::Decrypt { force } => commands::command_decrypt(force)?,
         Commands::Export(args) => commands::command_export(args)?,
         Commands::Import(args) => commands::command_import(args)?,
-        // The shell command is handled in main() and will not be matched here.
+        
         Commands::Shell => unreachable!(),
     }
 
@@ -106,10 +106,10 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
 fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
-    // It either dispatches a command or handles the default jot action.
+    
     match cli.command {
         Some(command) => {
-            // The shell command is handled directly here before the dispatch.
+            
             if let Commands::Shell = command {
                 commands::command_shell()?;
             } else {
@@ -143,7 +143,6 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// Unit tests for helpers that are simple and don't require file system access.
 #[cfg(test)]
 mod tests {
     use crate::helpers::get_ordinal_suffix;

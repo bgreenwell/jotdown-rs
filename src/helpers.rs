@@ -11,23 +11,18 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use which::which;
 
-// --- Data Structures ---
-
-/// Represents a single task item found within a note.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub description: String,
     pub completed: bool,
 }
 
-/// Holds aggregated statistics about tasks.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TaskStats {
     pub pending: usize,
     pub completed: usize,
 }
 
-/// Represents the YAML frontmatter section of a note.
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct Frontmatter {
     /// A list of tags associated with the note.
@@ -45,7 +40,6 @@ pub struct Frontmatter {
     pub fields: serde_yaml::Mapping,
 }
 
-/// Represents a fully parsed jot note, including its metadata and content.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Note {
     pub id: String,
@@ -56,17 +50,12 @@ pub struct Note {
     pub tasks: Vec<Task>,
 }
 
-/// Represents the `config.toml` file used for encryption settings.
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct Config {
     /// The public key (`age` recipient) used for encrypting notes.
     recipient: Option<String>,
 }
 
-// --- Path and Editor Helpers ---
-
-/// Gets the root directory for all `jd` data, creating it if it doesn't exist.
-///
 /// Honors the `$JD_DIR` environment variable if set, otherwise uses the platform-specific
 /// user config directory. It also triggers the one-time migration for legacy installations.
 pub fn get_jd_dir_root() -> Result<PathBuf> {
@@ -88,7 +77,6 @@ pub fn get_jd_dir_root() -> Result<PathBuf> {
 }
 
 /// Handles the one-time migration from the old `entries` directory structure.
-///
 /// If it finds a legacy `entries` directory and no new `notebooks` directory,
 /// it moves the old directory to `notebooks/default` to ensure backward compatibility.
 fn handle_legacy_migration(root_dir: &Path) -> Result<()> {
@@ -111,7 +99,6 @@ fn handle_legacy_migration(root_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Gets the directory where all notebooks are stored, ensuring it exists.
 pub fn get_notebooks_dir() -> Result<PathBuf> {
     let root_dir = get_jd_dir_root()?;
     let notebooks_dir = root_dir.join("notebooks");
@@ -122,7 +109,6 @@ pub fn get_notebooks_dir() -> Result<PathBuf> {
 }
 
 /// Gets the `entries` directory for the currently active notebook.
-///
 /// This is the core of the multi-notebook feature. It resolves the path based on this priority:
 /// 1. The `--notebook` command-line flag (passed in as `notebook_override`).
 /// 2. The `JD_ACTIVE_NOTEBOOK` environment variable.
@@ -147,7 +133,6 @@ pub fn get_active_entries_dir(notebook_override: Option<String>) -> Result<PathB
     Ok(entries_dir)
 }
 
-/// Gets the directory where note templates are stored, ensuring it exists.
 pub fn get_templates_dir() -> Result<PathBuf> {
     let root_dir = get_jd_dir_root()?;
     let templates_dir = root_dir.join("templates");
@@ -158,10 +143,8 @@ pub fn get_templates_dir() -> Result<PathBuf> {
 }
 
 /// Determines which command-line editor to use.
-///
 /// It prioritizes the `$EDITOR` environment variable, then falls back to a list
 /// of common editors (`vim`, `nvim`, `nano`, `notepad.exe`).
-///
 /// # Errors
 /// Returns an error if no suitable editor can be found.
 pub fn get_editor() -> Result<String> {
@@ -184,8 +167,6 @@ pub fn get_editor() -> Result<String> {
     }
     bail!("Could not find a default editor. Please set the $EDITOR environment variable.")
 }
-
-// --- Core File I/O Logic ---
 
 /// Writes content to a note file, encrypting it if encryption is enabled.
 pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
@@ -244,8 +225,6 @@ pub fn read_note_file(path: &Path) -> Result<String> {
         Ok(String::from_utf8(file_bytes)?)
     }
 }
-
-// --- Other Helpers ---
 
 /// Parses a file into a `Note` struct, separating frontmatter from content.
 pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
@@ -313,7 +292,6 @@ pub fn get_note_path_for_action(
     }
 }
 
-/// Formats and prints a list of notes to the console.
 pub fn display_note_list(notes: Vec<Note>) {
     if notes.is_empty() {
         println!("\nNo jots found.");
@@ -327,7 +305,6 @@ pub fn display_note_list(notes: Vec<Note>) {
     }
 }
 
-/// Displays notes in the requested format (human, json, csv).
 pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()> {
     match format {
         "json" => {
@@ -360,7 +337,6 @@ pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()>
     Ok(())
 }
 
-/// Displays search results with line-by-line context.
 pub fn display_search_results_with_context(notes: Vec<Note>, query: &str) {
     if notes.is_empty() {
         println!("\nNo matches found.");
@@ -380,7 +356,6 @@ pub fn display_search_results_with_context(notes: Vec<Note>, query: &str) {
     }
 }
 
-/// Formats and prints a compiled summary of notes to the console.
 pub fn compile_notes(notes: Vec<Note>) -> Result<()> {
     for note in notes {
         println!("---\n\n# {}\n\n{}", note.id, note.content);
@@ -388,7 +363,6 @@ pub fn compile_notes(notes: Vec<Note>) -> Result<()> {
     Ok(())
 }
 
-/// Finds a single, unique note file based on a starting prefix of its ID.
 pub fn find_unique_note_by_prefix(entries_dir: &Path, prefix: &str) -> Result<PathBuf> {
     let entries = fs::read_dir(entries_dir)?;
     let mut matches = Vec::new();
@@ -414,7 +388,6 @@ pub fn find_unique_note_by_prefix(entries_dir: &Path, prefix: &str) -> Result<Pa
     }
 }
 
-/// Gets the appropriate ordinal suffix for a number (e.g., "st", "nd", "rd", "th").
 pub fn get_ordinal_suffix(n: usize) -> &'static str {
     if (11..=13).contains(&(n % 100)) {
         "th"
@@ -428,7 +401,6 @@ pub fn get_ordinal_suffix(n: usize) -> &'static str {
     }
 }
 
-/// Finds the Nth most recent note.
 pub fn find_note_by_index_from_end(entries_dir: &Path, index: usize) -> Result<PathBuf> {
     if index == 0 {
         bail!("--last index must be 1 or greater.");

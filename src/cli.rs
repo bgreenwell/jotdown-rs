@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 
-/// The main CLI structure, representing the `jd` command itself.
 #[derive(Parser, Debug)]
 #[command(name = "jd", version, about = "A minimalist, command-line journal.")]
 pub struct Cli {
@@ -33,7 +32,6 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
         .ok_or_else(|| format!("invalid key-value pair: {s}"))
 }
 
-/// An enumeration of all possible subcommands `jd` can execute.
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Create a new jot using an editor, optionally with a template.
@@ -282,7 +280,6 @@ pub enum Commands {
     Shell,
 }
 
-/// Arguments for the `notebook` subcommand.
 #[derive(Args, Debug)]
 pub struct NotebookArgs {
     /// The notebook management action to perform.
@@ -290,7 +287,6 @@ pub struct NotebookArgs {
     pub action: NotebookAction,
 }
 
-/// An enumeration of all possible notebook management actions.
 #[derive(Subcommand, Debug)]
 pub enum NotebookAction {
     /// Create a new, empty notebook.
@@ -314,7 +310,6 @@ pub enum NotebookAction {
     Status,
 }
 
-/// Arguments for the `info` subcommand.
 #[derive(Args, Debug)]
 pub struct InfoArgs {
     /// Display the paths used by jd for storage and templates.
@@ -328,7 +323,6 @@ pub struct InfoArgs {
     pub all: bool,
 }
 
-/// Arguments for the `tag` subcommand.
 #[derive(Args, Debug)]
 pub struct TagArgs {
     /// The tag management action to perform.
@@ -336,7 +330,6 @@ pub struct TagArgs {
     pub action: TagAction,
 }
 
-/// An enumeration of all possible property-related actions.
 #[derive(Subcommand, Debug)]
 pub enum PropertyAction {
     /// Set a property value.
@@ -379,8 +372,6 @@ pub enum PropertyAction {
     },
 }
 
-/// An enumeration of all possible tag-related actions.
-
 #[derive(Subcommand, Debug)]
 pub enum TagAction {
     /// Add one or more tags to a jot.
@@ -422,7 +413,6 @@ pub enum TagAction {
     },
 }
 
-/// Arguments for the `export` subcommand.
 #[derive(Args, Debug)]
 pub struct ExportArgs {
     /// The name of the notebook to export.
@@ -438,7 +428,6 @@ pub struct ExportArgs {
     pub output: PathBuf,
 }
 
-/// Arguments for the `import` subcommand.
 #[derive(Args, Debug)]
 pub struct ImportArgs {
     /// The path to the file to import.
