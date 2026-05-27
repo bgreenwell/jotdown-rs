@@ -1,0 +1,10 @@
+# Rust formatting configuration for jotdown-rs
+# Using only stable features for compatibility
+
+edition = "2021"
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+newline_style = "Auto"
+remove_nested_parens = true
+use_small_heuristics = "Default"

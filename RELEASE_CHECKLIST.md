@@ -1,0 +1,110 @@
+# Release Checklist
+
+Use this checklist when preparing a new release of jotdown-rs. You can also create a GitHub issue using the "Release" template to track progress.
+
+## Pre-Release
+
+- [ ] All tests passing: `cargo test`
+- [ ] No clippy warnings: `cargo clippy -- -D warnings`
+- [ ] Code is formatted: `cargo fmt --check`
+- [ ] Local toolchain is up to date: `rustup update stable`
+- [ ] CHANGELOG.md updated:
+  - [ ] Move items from `[Unreleased]` to new `[X.Y.Z] - YYYY-MM-DD` section
+  - [ ] Keep `[Unreleased]` section empty for future changes
+- [ ] Version bumped in `Cargo.toml`
+- [ ] `dist-workspace.toml` is in sync: `dist init --yes && git add dist-workspace.toml`
+
+## Create Release
+
+- [ ] Commit version bump: `git commit -m "chore: release X.Y.Z"`
+- [ ] Push to main: `git push`
+- [ ] Create version tag: `git tag vX.Y.Z`
+- [ ] Push tag: `git push origin vX.Y.Z`
+- [ ] Wait for GitHub Actions workflows to complete (~10-15 minutes)
+
+## Verify Automated Releases
+
+All of the following are now automated via GitHub Actions:
+
+- [ ] **GitHub Release** created at https://github.com/bgreenwell/jotdown-rs/releases/tag/vX.Y.Z
+  - [ ] All platform binaries present (Linux, macOS, Windows)
+  - [ ] Tarballs (.tar.xz, .tar.gz) and ZIP archive
+  - [ ] MSI installer for Windows
+  - [ ] Shell/PowerShell installer scripts
+  - [ ] SHA256 checksum files
+
+- [ ] **Homebrew** formula published to [bgreenwell/homebrew-jotdown-rs](https://github.com/bgreenwell/homebrew-jotdown-rs)
+  - Automated by: `publish-homebrew-formula` job in release.yml
+
+- [ ] **Scoop** manifest published to [bgreenwell/scoop-bucket](https://github.com/bgreenwell/scoop-bucket)
+  - Automated by: `.github/workflows/publish-scoop.yml`
+
+- [ ] **crates.io** published at https://crates.io/crates/jotdown-rs
+  - Automated by: `publish-crates-io` job in release.yml
+
+- [ ] **AUR** package updated at [jotdown-rs-bin](https://aur.archlinux.org/packages/jotdown-rs-bin)
+  - Automated by: `.github/workflows/publish-aur.yml`
+
+- [ ] **WinGet** manifest PR created to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs)
+  - Automated by: `.github/workflows/publish-winget.yml`
+  - **Note:** PR may require manual merge approval from Microsoft team (1-2 days)
+
+## Test Installations
+
+- [ ] **Homebrew (macOS/Linux)**:
+  ```bash
+  brew update
+  brew upgrade jotdown-rs
+  jd --version
+  ```
+
+- [ ] **Scoop (Windows)**:
+  ```powershell
+  scoop update
+  scoop update jotdown-rs
+  jd --version
+  ```
+
+- [ ] **AUR (Arch Linux)**:
+  ```bash
+  yay -Syu jotdown-rs-bin
+  jd --version
+  ```
+
+- [ ] **WinGet (Windows)**:
+  ```powershell
+  winget upgrade bgreenwell.jotdown-rs
+  jd --version
+  ```
+  **Note:** May take 1-2 days for WinGet PR to be merged
+
+- [ ] **Shell installer (Linux/macOS)**:
+  ```bash
+  curl --proto '=https' --tlsv1.2 -LsSf \
+    https://github.com/bgreenwell/jotdown-rs/releases/latest/download/jotdown-rs-installer.sh | sh
+  ```
+
+## Post-Release
+
+- [ ] All automated workflows completed successfully (check GitHub Actions)
+- [ ] Announcement published (if applicable)
+- [ ] Close release tracking issue
+
+## Troubleshooting
+
+**GitHub Actions fails:**
+- Check workflow logs for specific error
+- Verify all secrets are configured: `HOMEBREW_TAP_TOKEN`, `SCOOP_BUCKET_TOKEN`, `CARGO_REGISTRY_TOKEN`, `AUR_SSH_PRIVATE_KEY`, `WINGET_TOKEN`
+
+**cargo-dist out of sync:**
+- Run `dist init --yes && git add dist-workspace.toml wix/ && git commit -m "chore(dist): sync cargo-dist generated files"` before tagging
+
+**WinGet PR not appearing:**
+- Verify `WINGET_TOKEN` has `repo` + `workflow` scopes
+- First-time submission must be done manually: `komac new --version <ver> --urls <msi-url> --submit bgreenwell.jotdown-rs`
+
+**Workflow references:**
+- `.github/workflows/release.yml` — Main release, Homebrew, crates.io
+- `.github/workflows/publish-scoop.yml` — Scoop bucket
+- `.github/workflows/publish-aur.yml` — AUR publishing
+- `.github/workflows/publish-winget.yml` — WinGet manifests

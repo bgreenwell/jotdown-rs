@@ -2,10 +2,13 @@
 
 `jotdown-rs` is a fast, minimalist command-line tool for capturing thoughts without friction. The core workflow is a single command: type `jd 'your thought'` and move on. Everything else — notebooks, encryption, git sync, templates — is available when you need it and invisible when you don't.
 
-[![CI Status](https://github.com/bgreenwell/rjot/actions/workflows/rust.yml/badge.svg)](https://github.com/bgreenwell/rjot/actions/workflows/rust.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust Version](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
-[![Platform Support](https://img.shields.io/badge/platform-linux%20%7C%20macOS%20%7C%20windows-lightgrey.svg)](https://github.com/bgreenwell/rjot)
+[![CI](https://img.shields.io/github/actions/workflow/status/bgreenwell/jotdown-rs/ci.yml?style=for-the-badge)](https://github.com/bgreenwell/jotdown-rs/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/jotdown-rs.svg?style=for-the-badge)](https://crates.io/crates/jotdown-rs)
+[![Downloads](https://img.shields.io/crates/d/jotdown-rs?style=for-the-badge)](https://crates.io/crates/jotdown-rs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
+[![Easy Install](https://img.shields.io/badge/Easy%20Install-Homebrew%20%7C%20Scoop-FBB040?style=for-the-badge)](#installation)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-blue?style=for-the-badge)](https://github.com/bgreenwell/jotdown-rs/releases/latest)
 
 ## Design principles
 
@@ -61,7 +64,7 @@ This method automatically downloads, compiles, and installs `jd` on your system.
 To build the very latest version directly from the source code:
 
 ```sh
-git clone https://github.com/bgreenwell/rjot.git
+git clone https://github.com/bgreenwell/jotdown-rs.git
 cd rjot
 cargo install --path .
 ```

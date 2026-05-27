@@ -233,13 +233,12 @@ pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
     let file_content =
         read_note_file(path).with_context(|| format!("Could not read file: {path:?}"))?;
 
-    let (frontmatter, content_str) = if file_content.starts_with("---") {
+    let (frontmatter, content_str) = if let Some(after_open) = file_content.strip_prefix("---") {
         // Find the closing `---` only at the start of a line, so `---` inside
         // a YAML value (e.g. `title: "foo --- bar"`) does not terminate early.
-        if let Some(rel) = file_content[3..].find("\n---") {
-            let end = 3 + rel; // byte offset of the '\n' before closing ---
-            let frontmatter_str = &file_content[3..end];
-            let content_part = file_content[(end + 4)..].trim().to_string();
+        if let Some(rel) = after_open.find("\n---") {
+            let frontmatter_str = &after_open[..rel];
+            let content_part = after_open[(rel + 4)..].trim().to_string();
             let fm: Frontmatter = toml::from_str(frontmatter_str)
                 .with_context(|| format!("Failed to parse TOML frontmatter in {path:?}"))?;
             (fm, content_part)

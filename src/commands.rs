@@ -130,7 +130,25 @@ fn is_valid_notebook_name(name: &str) -> bool {
     if name.is_empty() || name == "." || name == ".." {
         return false;
     }
-    !name.chars().any(|c| matches!(c, '/' | '\\' | '"' | '\'' | '`' | '$' | '!' | '&' | '|' | ';' | '(' | ')' | '<' | '>' | '\0'))
+    !name.chars().any(|c| {
+        matches!(
+            c,
+            '/' | '\\'
+                | '"'
+                | '\''
+                | '`'
+                | '$'
+                | '!'
+                | '&'
+                | '|'
+                | ';'
+                | '('
+                | ')'
+                | '<'
+                | '>'
+                | '\0'
+        )
+    })
 }
 
 fn command_notebook_new(name: &str) -> Result<()> {
@@ -213,10 +231,9 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
             let mut note = parse_note_from_file(&note_path, &notebook_name)?;
 
-            note.frontmatter.fields.insert(
-                name.clone(),
-                toml::Value::String(value.clone()),
-            );
+            note.frontmatter
+                .fields
+                .insert(name.clone(), toml::Value::String(value.clone()));
 
             let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
             let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
@@ -258,12 +275,7 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
             let mut note = parse_note_from_file(&note_path, &notebook_name)?;
 
-            if note
-                .frontmatter
-                .fields
-                .remove(name.as_str())
-                .is_some()
-            {
+            if note.frontmatter.fields.remove(name.as_str()).is_some() {
                 let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
                 let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
                 helpers::write_note_file(&note_path, &new_content)?;
@@ -427,7 +439,10 @@ pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
         println!("Appended to daily note: {}", filename);
     } else {
         // Create new
-        let content = format!("---\ntitle = \"Daily Note - {}\"\n---\n\n{}\n", today, message);
+        let content = format!(
+            "---\ntitle = \"Daily Note - {}\"\n---\n\n{}\n",
+            today, message
+        );
         helpers::write_note_file(&note_path, &content)?;
         println!("Created daily note: {}", filename);
     }
@@ -550,10 +565,14 @@ pub fn command_shell() -> Result<()> {
                             .notebook
                             .clone()
                             .unwrap_or_else(|| active_notebook.clone());
-                        let entries_dir = match crate::helpers::get_active_entries_dir(Some(notebook_override)) {
-                            Ok(d) => d,
-                            Err(e) => { eprintln!("Error: {e}"); continue; }
-                        };
+                        let entries_dir =
+                            match crate::helpers::get_active_entries_dir(Some(notebook_override)) {
+                                Ok(d) => d,
+                                Err(e) => {
+                                    eprintln!("Error: {e}");
+                                    continue;
+                                }
+                            };
 
                         if let Some(command) = cli.command {
                             if let Err(e) = crate::run_command(command, entries_dir) {
@@ -654,9 +673,13 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
                 run_git(
                     &root_dir,
                     &[
-                        "-c", "user.name=jd",
-                        "-c", "user.email=jd@localhost",
-                        "commit", "-m", "Initial commit: Add .gitignore",
+                        "-c",
+                        "user.name=jd",
+                        "-c",
+                        "user.email=jd@localhost",
+                        "commit",
+                        "-m",
+                        "Initial commit: Add .gitignore",
                     ],
                 )?;
                 println!("Created initial commit to track .gitignore");
@@ -776,9 +799,13 @@ pub fn command_sync() -> Result<()> {
     let commit_output = Command::new("git")
         .current_dir(&root_dir)
         .args([
-            "-c", "user.name=jd",
-            "-c", "user.email=jd@localhost",
-            "commit", "-m", &commit_message,
+            "-c",
+            "user.name=jd",
+            "-c",
+            "user.email=jd@localhost",
+            "commit",
+            "-m",
+            &commit_message,
         ])
         .output()
         .map_err(git_not_found)?;
@@ -902,7 +929,11 @@ pub fn command_new(
                 if o.status.success() {
                     String::from_utf8(o.stdout).ok().map(|s| {
                         let t = s.trim().to_string();
-                        if t.is_empty() { "detached-head".to_string() } else { t }
+                        if t.is_empty() {
+                            "detached-head".to_string()
+                        } else {
+                            t
+                        }
                     })
                 } else {
                     None
@@ -1368,9 +1399,9 @@ pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     let content = helpers::read_note_file(&note_path)?;
 
     if raw {
-        if content.starts_with("---") {
-            if let Some(rel) = content[3..].find("\n---") {
-                print!("{}", &content[(3 + rel + 4)..].trim_start());
+        if let Some(stripped) = content.strip_prefix("---") {
+            if let Some(rel) = stripped.find("\n---") {
+                print!("{}", stripped[(rel + 4)..].trim_start());
                 return Ok(());
             }
         }
@@ -1509,7 +1540,7 @@ fn print_stats(note_count: usize, tag_counts: HashMap<String, usize>, task_stats
     println!("Total jots: {note_count}");
     if !tag_counts.is_empty() {
         let mut sorted_tags: Vec<_> = tag_counts.into_iter().collect();
-        sorted_tags.sort_by(|a, b| b.1.cmp(&a.1));
+        sorted_tags.sort_by_key(|&(_, count)| std::cmp::Reverse(count));
         sorted_tags.truncate(5);
         println!("\nMost common tags:");
         for (tag, count) in sorted_tags {
