@@ -591,8 +591,20 @@ pub fn command_shell() -> Result<()> {
     Ok(())
 }
 
+fn git_not_found(e: std::io::Error) -> anyhow::Error {
+    if e.kind() == std::io::ErrorKind::NotFound {
+        anyhow!("git is not installed or not on your PATH. Install git to use this feature.")
+    } else {
+        e.into()
+    }
+}
+
 fn run_git(dir: &Path, args: &[&str]) -> Result<()> {
-    let output = Command::new("git").current_dir(dir).args(args).output()?;
+    let output = Command::new("git")
+        .current_dir(dir)
+        .args(args)
+        .output()
+        .map_err(git_not_found)?;
     if !output.status.success() {
         bail!(
             "git {}: {}",
@@ -615,7 +627,8 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
             let output = Command::new("git")
                 .current_dir(&root_dir)
                 .arg("init")
-                .output()?;
+                .output()
+                .map_err(git_not_found)?;
             if !output.status.success() {
                 bail!(
                     "Failed to initialize Git repository: {}",
@@ -767,7 +780,8 @@ pub fn command_sync() -> Result<()> {
             "-c", "user.email=jd@localhost",
             "commit", "-m", &commit_message,
         ])
-        .output()?;
+        .output()
+        .map_err(git_not_found)?;
 
     if commit_output.status.success() {
         println!("Committed changes with message: '{commit_message}'");
@@ -790,7 +804,8 @@ pub fn command_sync() -> Result<()> {
     let branch_output = Command::new("git")
         .current_dir(&root_dir)
         .args(["branch", "--show-current"])
-        .output()?;
+        .output()
+        .map_err(git_not_found)?;
     if !branch_output.status.success() {
         bail!("Could not determine current branch.");
     }

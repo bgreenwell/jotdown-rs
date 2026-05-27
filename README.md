@@ -442,6 +442,8 @@ jd import ./work_backup.zip
 
 ### Git integration (optional)
 
+Requires `git` to be installed and available on your `$PATH`.
+
 **1. Initialize with Git:**
 
 ```sh
