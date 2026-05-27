@@ -62,3 +62,8 @@ Body content here.
 ### Git workflow
 - Use atomic commits with descriptive messages.
 - Format: `<type>: <description>` (e.g., `feat: add rename command`).
+
+### CHANGELOG
+- Keep entries concise, trim, and to the point — one line per entry, no sub-bullets.
+- User-facing changes only. Internal refactors, test changes, and doc fixes do not belong in the CHANGELOG.
+- Add new entries under `## [Unreleased]` at the top of the file.

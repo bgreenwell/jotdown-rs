@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Note frontmatter now uses TOML syntax (`tags = ["rust"]`, `pinned = true`) instead of YAML. Existing YAML-format notes must be re-created or manually converted.
+- `jd sync` now delegates to the system `git` binary, inheriting the user's global git config, signing keys, and hooks.
+
+### Fixed
+- `-t`/`--tags` flag no longer consumes the note message as a tag value; `-t rust,notes "my note"` now works as expected.
+- `jd sync` no longer creates an empty commit when there are no staged changes.
+- `--last` flag now selects notes by filename (creation time) rather than modification time.
+- `jd prepend` no longer wraps plain-text notes in a spurious frontmatter block.
+- `jd import` zip archives can no longer write files outside the target notebook directory.
+- `jd notebook use` output is now single-quoted, closing a shell-injection vector for maliciously named notebooks.
+- Ten subcommands (`append`, `prepend`, `move`, `rename`, `tag`, `property`) no longer panic when called without a note target.
+
 ## [Unreleased] - 2026-05-23
 
 ### Added
@@ -9,7 +24,7 @@ All notable changes to this project are documented in this file. The format is b
 - Robust shell argument parsing using `shell-words` to handle quotes and spaces.
 
 ### Fixed
-- Note ordering for `--last` flag now uses modification time instead of filename.
+- Note ordering for `--last` flag now uses filename instead of modification time.
 - Renaming notes now automatically updates the `title` field in frontmatter.
 - Indentation for multiline task descriptions in Markdown.
 
