@@ -23,7 +23,6 @@ crossbeam-channel = "0.5"
 dirs = "5.0.1" 
 git2 = "0.18"
 rand = "0.8"
-rpassword = "7.3"
 rustyline = "14.0"
 rustyline-derive = "0.10.0" # NEW
 serde = { version = "1.0.203", features = ["derive"] }

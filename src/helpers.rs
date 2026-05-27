@@ -234,9 +234,12 @@ pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
         read_note_file(path).with_context(|| format!("Could not read file: {path:?}"))?;
 
     let (frontmatter, content_str) = if file_content.starts_with("---") {
-        if let Some(end_frontmatter) = file_content.get(3..).and_then(|s| s.find("---")) {
-            let frontmatter_str = &file_content[3..(3 + end_frontmatter)];
-            let content_part = file_content[(3 + end_frontmatter + 3)..].trim().to_string();
+        // Find the closing `---` only at the start of a line, so `---` inside
+        // a YAML value (e.g. `title: "foo --- bar"`) does not terminate early.
+        if let Some(rel) = file_content[3..].find("\n---") {
+            let end = 3 + rel; // byte offset of the '\n' before closing ---
+            let frontmatter_str = &file_content[3..end];
+            let content_part = file_content[(end + 4)..].trim().to_string();
             let fm: Frontmatter = serde_yaml::from_str(frontmatter_str)
                 .with_context(|| format!("Failed to parse YAML frontmatter in {path:?}"))?;
             (fm, content_part)
@@ -305,6 +308,10 @@ pub fn display_note_list(notes: Vec<Note>) {
     }
 }
 
+fn csv_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
 pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()> {
     match format {
         "json" => {
@@ -322,11 +329,11 @@ pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()>
                     .take(50)
                     .collect::<String>();
                 println!(
-                    "{},{},\"{}\",\"{}\"",
-                    note.id,
-                    note.notebook,
-                    tags,
-                    snippet.replace('"', "\"\"")
+                    "{},{},{},{}",
+                    csv_quote(&note.id),
+                    csv_quote(&note.notebook),
+                    csv_quote(&tags),
+                    csv_quote(&snippet),
                 );
             }
         }
@@ -418,11 +425,7 @@ pub fn find_note_by_index_from_end(entries_dir: &Path, index: usize) -> Result<P
             total_jots
         );
     }
-    entries.sort_by_key(|e| {
-        e.metadata()
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-    });
+    entries.sort_by_key(|e| e.file_name());
     let target_index = total_jots - index;
     entries
         .get(target_index)

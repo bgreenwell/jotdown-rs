@@ -127,11 +127,17 @@ pub fn command_notebook(args: NotebookArgs) -> Result<()> {
     Ok(())
 }
 
+fn is_valid_notebook_name(name: &str) -> bool {
+    if name.is_empty() || name == "." || name == ".." {
+        return false;
+    }
+    !name.chars().any(|c| matches!(c, '/' | '\\' | '"' | '\'' | '`' | '$' | '!' | '&' | '|' | ';' | '(' | ')' | '<' | '>' | '\0'))
+}
+
 fn command_notebook_new(name: &str) -> Result<()> {
-    // Basic sanitization to prevent directory traversal or invalid names.
-    if name.contains('/') || name.contains('\\') || name == "." || name == ".." {
+    if !is_valid_notebook_name(name) {
         bail!(
-            "Invalid notebook name: '{}'. Names cannot contain slashes or be dots.",
+            "Invalid notebook name: '{}'. Names cannot contain slashes, shell-special characters, or be dots.",
             name
         );
     }
@@ -169,6 +175,10 @@ fn command_notebook_list() -> Result<()> {
 }
 
 fn command_notebook_use(name: &str) -> Result<()> {
+    if !is_valid_notebook_name(name) {
+        bail!("Invalid notebook name: '{}'.", name);
+    }
+
     let notebooks_dir = get_notebooks_dir()?;
     let target_notebook = notebooks_dir.join(name);
 
@@ -180,9 +190,9 @@ fn command_notebook_use(name: &str) -> Result<()> {
         );
     }
 
-    // This command prints the shell command for the user to evaluate.
-    // It cannot modify the parent shell's environment directly.
-    println!("export JD_ACTIVE_NOTEBOOK=\"{name}\"");
+    // Prints a shell command for the user to evaluate. Single quotes prevent
+    // any shell interpretation of the notebook name.
+    println!("export JD_ACTIVE_NOTEBOOK='{name}'");
     Ok(())
 }
 
@@ -299,19 +309,36 @@ pub fn command_prepend(
 ) -> Result<()> {
     let note_path = get_note_path_for_action(entries_dir, id, last)?;
     let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
-    let mut note = parse_note_from_file(&note_path, &notebook_name)?;
+    let note = parse_note_from_file(&note_path, &notebook_name)?;
 
-    // We want to prepend BELOW the frontmatter.
     let prefix = if !content.ends_with('\n') {
         format!("{}\n", content)
     } else {
         content.to_string()
     };
-    note.content = format!("{}{}", prefix, note.content);
 
-    let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
-    let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
-    helpers::write_note_file(&note_path, &new_content)?;
+    // Read the raw file and insert the new content after the frontmatter block
+    // (or at the very top if there is no frontmatter), so plain-text notes are
+    // not silently wrapped in a YAML header.
+    let mut raw = helpers::read_note_file(&note_path)?;
+    let insert_at = if raw.starts_with("---") {
+        raw.get(3..)
+            .and_then(|s| s.find("\n---"))
+            .map(|i| 3 + i + 4) // skip past the closing ---
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    // Ensure there's a blank line between the frontmatter and the new content.
+    let separator = if insert_at > 0 && !raw[insert_at..].starts_with("\n\n") {
+        "\n\n"
+    } else {
+        ""
+    };
+    raw.insert_str(insert_at, &format!("{}{}", separator, prefix));
+
+    helpers::write_note_file(&note_path, &raw)?;
     println!("Successfully prepended to jot '{}'.", note.id);
     Ok(())
 }
@@ -521,8 +548,10 @@ pub fn command_shell() -> Result<()> {
                             .notebook
                             .clone()
                             .unwrap_or_else(|| active_notebook.clone());
-                        let entries_dir =
-                            crate::helpers::get_active_entries_dir(Some(notebook_override))?;
+                        let entries_dir = match crate::helpers::get_active_entries_dir(Some(notebook_override)) {
+                            Ok(d) => d,
+                            Err(e) => { eprintln!("Error: {e}"); continue; }
+                        };
 
                         if let Some(command) = cli.command {
                             if let Err(e) = crate::run_command(command, entries_dir) {
@@ -712,9 +741,6 @@ pub fn command_sync() -> Result<()> {
     let oid = index.write_tree()?;
     let tree = repo.find_tree(oid)?;
 
-    let signature = Signature::now("jd", "jd@localhost")?;
-    let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
-
     let head = repo.head();
     let parent_commits = match head {
         Ok(head_ref) => vec![head_ref.peel_to_commit()?],
@@ -722,6 +748,16 @@ pub fn command_sync() -> Result<()> {
         Err(e) => return Err(e.into()),
     };
 
+    // Skip the commit if the tree is identical to the current HEAD — nothing changed.
+    if let Some(parent) = parent_commits.first() {
+        if parent.tree_id() == oid {
+            println!("Nothing to sync — already up to date.");
+            return Ok(());
+        }
+    }
+
+    let signature = Signature::now("jd", "jd@localhost")?;
+    let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
     let parents_ref: Vec<&git2::Commit> = parent_commits.iter().collect();
 
     repo.commit(
@@ -857,23 +893,14 @@ pub fn command_new(
     let tpl_path = templates_dir.join(tpl_name);
     let mut initial_content = String::new();
     if tpl_path.exists() {
-        initial_content = fs::read_to_string(tpl_path)?;
-        // {{date}}
-        initial_content = initial_content.replace("{{date}}", &now.to_rfc3339());
+        let template = fs::read_to_string(tpl_path)?;
 
-        // {{uuid}}
         let uuid = Uuid::new_v4().to_string();
-        initial_content = initial_content.replace("{{uuid}}", &uuid);
-
-        // {{project_dir}}
         let project_dir = env::current_dir()?
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        initial_content = initial_content.replace("{{project_dir}}", &project_dir);
-
-        // {{branch}}
         let branch = match Repository::discover(".") {
             Ok(repo) => {
                 let head = repo.head()?;
@@ -881,11 +908,29 @@ pub fn command_new(
             }
             Err(_) => "not-a-repo".to_string(),
         };
-        initial_content = initial_content.replace("{{branch}}", &branch);
 
-        // Handle custom variables
+        // Build the full substitution table up front, then apply all
+        // replacements in a single pass to prevent double-substitution.
+        let mut substitutions: Vec<(String, String)> = vec![
+            ("{{date}}".to_string(), now.to_rfc3339()),
+            ("{{uuid}}".to_string(), uuid),
+            ("{{project_dir}}".to_string(), project_dir),
+            ("{{branch}}".to_string(), branch),
+        ];
         for (key, value) in variables {
-            initial_content = initial_content.replace(&format!("{{{{{key}}}}}"), &value);
+            substitutions.push((format!("{{{{{key}}}}}"), value));
+        }
+
+        initial_content = template;
+        for (placeholder, value) in &substitutions {
+            initial_content = initial_content.replace(placeholder.as_str(), value.as_str());
+        }
+
+        // Warn the user if any {{...}} placeholders were not resolved.
+        if let Some(start) = initial_content.find("{{") {
+            if initial_content[start..].contains("}}") {
+                eprintln!("Warning: template contains unreplaced placeholders. Use -v key=value to supply values.");
+            }
         }
     }
     helpers::write_note_file(&file_path, &initial_content)?;
@@ -1323,8 +1368,8 @@ pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
 
     if raw {
         if content.starts_with("---") {
-            if let Some(end) = content.get(3..).and_then(|s| s.find("---")) {
-                print!("{}", &content[(3 + end + 3)..].trim_start());
+            if let Some(rel) = content[3..].find("\n---") {
+                print!("{}", &content[(3 + rel + 4)..].trim_start());
                 return Ok(());
             }
         }
@@ -1509,7 +1554,7 @@ fn export_to_zip(notebook_path: &Path, output_path: &Path) -> Result<()> {
     for entry in fs::read_dir(notebook_path)?.filter_map(Result::ok) {
         let path = entry.path();
         if path.is_file() {
-            let filename = path.file_name().unwrap().to_str().unwrap();
+            let filename = path.file_name().unwrap().to_string_lossy();
             zip.start_file(filename, options)?;
             let content = helpers::read_note_file(&path)?;
             zip.write_all(content.as_bytes())?;
@@ -1573,7 +1618,12 @@ fn import_from_zip(file_path: &Path) -> Result<()> {
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
-        let outpath = new_notebook_path.join(file.name());
+        // Reject entries with path traversal components or absolute paths.
+        let entry_name = file.name();
+        let safe_name = Path::new(entry_name)
+            .file_name()
+            .ok_or_else(|| anyhow!("Invalid entry name in archive: '{}'", entry_name))?;
+        let outpath = new_notebook_path.join(safe_name);
         let mut outfile = File::create(&outpath)?;
         io::copy(&mut file, &mut outfile)?;
     }

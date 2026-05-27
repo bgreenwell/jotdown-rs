@@ -118,7 +118,7 @@ pub enum Commands {
     /// Append text to an existing jot.
     Append {
         /// The prefix of the jot ID to append to.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Append to the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -130,7 +130,7 @@ pub enum Commands {
     /// Prepend text to an existing jot (below the frontmatter).
     Prepend {
         /// The prefix of the jot ID to prepend to.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Prepend to the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -142,7 +142,7 @@ pub enum Commands {
     /// Move a jot to another notebook.
     Move {
         /// The prefix of the jot ID to move.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Move the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -154,7 +154,7 @@ pub enum Commands {
     /// Rename a jot (updates the filename).
     Rename {
         /// The prefix of the jot ID to rename.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Rename the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -335,7 +335,7 @@ pub enum PropertyAction {
     /// Set a property value.
     Set {
         /// The prefix of the jot ID to modify.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Modify the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -348,7 +348,7 @@ pub enum PropertyAction {
     /// Get a property value.
     Get {
         /// The prefix of the jot ID to query.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Query the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -362,7 +362,7 @@ pub enum PropertyAction {
     /// Delete a property.
     Delete {
         /// The prefix of the jot ID to modify.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", required = true)]
         id: Option<String>,
         /// Modify the Nth most recent jot.
         #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
@@ -377,7 +377,7 @@ pub enum TagAction {
     /// Add one or more tags to a jot.
     Add {
         /// The ID prefix of the note to tag.
-        #[arg(long, short = 'p', group = "target")]
+        #[arg(long, short = 'p', group = "target", required = true)]
         id_prefix: Option<String>,
         /// Target the Nth most recent note.
         #[arg(long, short, group = "target")]
@@ -390,7 +390,7 @@ pub enum TagAction {
     #[command(alias = "rm")]
     Remove {
         /// The ID prefix of the note to modify.
-        #[arg(long, short = 'p', group = "target")]
+        #[arg(long, short = 'p', group = "target", required = true)]
         id_prefix: Option<String>,
         /// Target the Nth most recent note.
         #[arg(long, short, group = "target")]
@@ -402,7 +402,7 @@ pub enum TagAction {
     /// Overwrite all existing tags on a jot.
     Set {
         /// The ID prefix of the note to modify.
-        #[arg(long, short = 'p', group = "target")]
+        #[arg(long, short = 'p', group = "target", required = true)]
         id_prefix: Option<String>,
         /// Target the Nth most recent note.
         #[arg(long, short, group = "target")]

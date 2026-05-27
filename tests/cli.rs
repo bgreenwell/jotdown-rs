@@ -351,7 +351,7 @@ mod notebooks {
             .assert()
             .success()
             .stdout(predicate::str::contains(
-                "export JD_ACTIVE_NOTEBOOK=\"project-x\"",
+                "export JD_ACTIVE_NOTEBOOK='project-x'",
             ));
 
         Ok(())
