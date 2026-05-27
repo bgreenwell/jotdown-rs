@@ -10,9 +10,9 @@ A minimalist command-line jotting utility written in Rust, designed for fast cap
 - **Rust**: The implementation language.
 - **Clap**: CLI argument parsing (using the derive API).
 - **Age**: Transparent on-disk encryption.
-- **Git2**: Built-in Git integration for syncing.
+- **Git**: Sync integration via `std::process::Command` shell calls to the system `git` binary.
 - **Rustyline**: Interactive shell with autocompletion and history.
-- **Serde**: Serialization/deserialization of frontmatter (YAML) and exports (JSON/CSV).
+- **Serde**: Serialization/deserialization of frontmatter (TOML) and exports (JSON/CSV).
 
 ### Architecture
 - `src/main.rs`: Entry point and top-level command orchestration.
@@ -47,12 +47,12 @@ A minimalist command-line jotting utility written in Rust, designed for fast cap
 - **Validation**: Use `assert_cmd` and `predicates` for verifying CLI output and side effects.
 
 ### Note format
-Notes consist of an optional YAML frontmatter block and a Markdown body.
+Notes consist of an optional TOML frontmatter block (between `---` delimiters) and a Markdown body.
 ```markdown
 ---
-tags: [rust, project]
-pinned: true
-title: My Note Title
+tags = ["rust", "project"]
+pinned = true
+title = "My Note Title"
 ---
 Body content here.
 ```

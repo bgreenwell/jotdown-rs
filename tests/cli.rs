@@ -72,9 +72,9 @@ fn test_tagged_jot_creation() -> TestResult {
     let entry_path = fs::read_dir(entries_dir)?.next().unwrap()?.path();
     let content = fs::read_to_string(entry_path)?;
 
-    assert!(content.contains("tags:"));
-    assert!(content.contains("- rust"));
-    assert!(content.contains("- project"));
+    assert!(content.contains("tags ="));
+    assert!(content.contains("\"rust\""));
+    assert!(content.contains("\"project\""));
     Ok(())
 }
 
@@ -815,8 +815,8 @@ mod pinning {
         let last_note_path = entries.last().unwrap();
         let last_note_content = fs::read_to_string(last_note_path)?;
         assert!(
-            last_note_content.contains("pinned: true"),
-            "The note should contain 'pinned: true' after pinning."
+            last_note_content.contains("pinned = true"),
+            "The note should contain 'pinned = true' after pinning."
         );
 
         // 4. Unpin the same note using its ID prefix.
@@ -831,7 +831,7 @@ mod pinning {
         // 5. Verify the `pinned` attribute is now gone from the file.
         let unpinned_content = fs::read_to_string(last_note_path)?;
         assert!(
-            !unpinned_content.contains("pinned:"),
+            !unpinned_content.contains("pinned ="),
             "The 'pinned' key should be removed after unpinning."
         );
 
@@ -1165,7 +1165,6 @@ mod import_export {
 #[cfg(test)]
 mod templating {
     use super::*;
-    use git2::{Repository, Signature};
     use predicates::str::is_match;
 
     /// Tests the replacement of built-in variables like `{{date}}`,
@@ -1176,18 +1175,23 @@ mod templating {
         let templates_dir = jd_dir.join("templates");
         fs::create_dir(&templates_dir)?;
 
-        // 1. Initialize a git repo to test the {{branch}} variable.
-        let repo = Repository::init(temp_dir.path())?;
-        // The signature for the commit
-        let signature = Signature::now("jd-test", "test@jd.com")?;
-        // Create an empty tree for the initial commit
-        let tree_id = repo.index()?.write_tree()?;
-        let tree = repo.find_tree(tree_id)?;
-        // Create the initial commit
-        let oid = repo.commit(None, &signature, &signature, "Initial commit", &tree, &[])?;
-        let commit = repo.find_commit(oid)?;
-        repo.branch("main", &commit, false)?;
-        repo.set_head("refs/heads/main")?; // Switch to the new branch
+        // 1. Initialize a git repo on branch "main" to test the {{branch}} variable.
+        std::process::Command::new("git")
+            .current_dir(temp_dir.path())
+            .args(["init"])
+            .output()?;
+        std::process::Command::new("git")
+            .current_dir(temp_dir.path())
+            .args(["commit", "--allow-empty", "-m", "init"])
+            .env("GIT_AUTHOR_NAME", "jd-test")
+            .env("GIT_AUTHOR_EMAIL", "test@jd.com")
+            .env("GIT_COMMITTER_NAME", "jd-test")
+            .env("GIT_COMMITTER_EMAIL", "test@jd.com")
+            .output()?;
+        std::process::Command::new("git")
+            .current_dir(temp_dir.path())
+            .args(["branch", "-m", "main"])
+            .output()?;
 
         // 2. Create a template file with all the built-in variables.
         let template_content =
@@ -1458,7 +1462,7 @@ mod manipulation {
 
         // 4. Verify the title was updated in the frontmatter
         let content = std::fs::read_to_string(new_path)?;
-        assert!(content.contains("title: new-daily-title"));
+        assert!(content.contains("title = \"new-daily-title\""));
 
         Ok(())
     }

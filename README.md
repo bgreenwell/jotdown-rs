@@ -110,7 +110,7 @@ You can also pipe the output of other commands directly into `jd` to save them a
 **4. Create a tagged note:**
 
 ```sh
-❯ jd 'A great idea for the project' --tags project rust
+❯ jd 'A great idea for the project' -t project,rust
 ```
 
 **5. Create a longer note in your editor:**
@@ -140,9 +140,7 @@ You can use the following variables in any template file:
 
 ```markdown
 ---
-tags:
-  - bug
-  - {{project_dir}}
+tags = ["bug", "{{project_dir}}"]
 ---
 
 # Bug Report: {{uuid}}
@@ -175,10 +173,7 @@ You can also define your own variables from the command line using the `-v` or `
 
 ```markdown
 ---
-tags:
-  - journal
-  - {{project_dir}}
-  - {{feature_name}}
+tags = ["journal", "{{project_dir}}", "{{feature_name}}"]
 ---
 # Dev Journal: {{uuid}}
 
@@ -342,7 +337,7 @@ Add text to the beginning or end of a note without opening an editor.
 
 ### Managing properties
 
-Notes support arbitrary key-value pairs in their YAML frontmatter. These can be managed using the `property` command.
+Notes support arbitrary key-value pairs in their frontmatter. These can be managed using the `property` command.
 
 **1. Set a property:**
 

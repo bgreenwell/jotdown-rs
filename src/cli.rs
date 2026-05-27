@@ -10,10 +10,8 @@ pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
 
-    /// Tags to add to a new jot, specified alongside the message.
-    ///
-    /// Accepts multiple values, either comma-separated or space-separated.
-    #[arg(long, short, value_delimiter = ',', num_args(1..))]
+    /// Tags to add to a new jot (comma-separated, e.g. -t rust,notes).
+    #[arg(long, short, value_delimiter = ',')]
     pub tags: Option<Vec<String>>,
 
     /// Run a command in a specific notebook without switching the active one.

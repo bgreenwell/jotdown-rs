@@ -20,14 +20,12 @@ anyhow = "1.0"  # For cleaner error handling
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 crossbeam-channel = "0.5"
-dirs = "5.0.1" 
-git2 = "0.18"
+dirs = "5.0.1"
 rand = "0.8"
 rustyline = "14.0"
 rustyline-derive = "0.10.0" # NEW
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.9.34"
 shell-words = "1.1.0"
 which = "4.4.2"
 toml = "0.8"
@@ -42,6 +40,5 @@ skim = "0.10.4"
 [dev-dependencies]
 assert_cmd = "2.0"
 chrono = "0.4"
-git2 = "0.18"
 predicates = "3.1"
 tempfile = "3.10"

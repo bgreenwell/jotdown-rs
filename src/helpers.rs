@@ -37,7 +37,7 @@ pub struct Frontmatter {
 
     /// Arbitrary additional fields in the frontmatter.
     #[serde(flatten)]
-    pub fields: serde_yaml::Mapping,
+    pub fields: toml::Table,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -240,8 +240,8 @@ pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
             let end = 3 + rel; // byte offset of the '\n' before closing ---
             let frontmatter_str = &file_content[3..end];
             let content_part = file_content[(end + 4)..].trim().to_string();
-            let fm: Frontmatter = serde_yaml::from_str(frontmatter_str)
-                .with_context(|| format!("Failed to parse YAML frontmatter in {path:?}"))?;
+            let fm: Frontmatter = toml::from_str(frontmatter_str)
+                .with_context(|| format!("Failed to parse TOML frontmatter in {path:?}"))?;
             (fm, content_part)
         } else {
             (Frontmatter::default(), file_content.clone())

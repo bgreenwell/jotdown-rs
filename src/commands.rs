@@ -6,10 +6,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use age::{secrecy::ExposeSecret, x25519, Decryptor, Identity};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::{Datelike, Local, NaiveDate};
 use clap::Parser;
-use git2::{Cred, PushOptions, RemoteCallbacks, Repository, Signature};
 use rand::Rng;
 use rustyline::completion::Completer;
 use rustyline::config::Configurer;
@@ -215,11 +214,11 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             let mut note = parse_note_from_file(&note_path, &notebook_name)?;
 
             note.frontmatter.fields.insert(
-                serde_yaml::Value::String(name.clone()),
-                serde_yaml::Value::String(value.clone()),
+                name.clone(),
+                toml::Value::String(value.clone()),
             );
 
-            let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+            let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
             let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
             helpers::write_note_file(&note_path, &new_content)?;
             println!(
@@ -237,15 +236,18 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
             let note = parse_note_from_file(&note_path, &notebook_name)?;
 
-            if let Some(value) = note
-                .frontmatter
-                .fields
-                .get(serde_yaml::Value::String(name.clone()))
-            {
+            if let Some(value) = note.frontmatter.fields.get(name.as_str()) {
                 if format == "json" {
                     println!("{}", serde_json::to_string(value)?);
                 } else {
-                    println!("{}", serde_yaml::to_string(value)?.trim());
+                    match value {
+                        toml::Value::String(s) => println!("{s}"),
+                        toml::Value::Integer(i) => println!("{i}"),
+                        toml::Value::Float(f) => println!("{f}"),
+                        toml::Value::Boolean(b) => println!("{b}"),
+                        toml::Value::Datetime(d) => println!("{d}"),
+                        v => println!("{}", serde_json::to_string(v)?),
+                    }
                 }
             } else {
                 bail!("Property '{}' not found for jot '{}'.", name, note.id);
@@ -259,10 +261,10 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             if note
                 .frontmatter
                 .fields
-                .remove(serde_yaml::Value::String(name.clone()))
+                .remove(name.as_str())
                 .is_some()
             {
-                let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+                let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
                 let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
                 helpers::write_note_file(&note_path, &new_content)?;
                 println!(
@@ -395,10 +397,10 @@ pub fn command_rename(
     // If there's a title in the frontmatter, update it too.
     if note.frontmatter.fields.contains_key("title") {
         note.frontmatter.fields.insert(
-            serde_yaml::Value::String("title".to_string()),
-            serde_yaml::Value::String(new_name.to_string()),
+            "title".to_string(),
+            toml::Value::String(new_name.to_string()),
         );
-        let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+        let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
         let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
         helpers::write_note_file(&note_path, &new_content)?;
     }
@@ -425,7 +427,7 @@ pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
         println!("Appended to daily note: {}", filename);
     } else {
         // Create new
-        let content = format!("---\ntitle: Daily Note - {}\n---\n\n{}\n", today, message);
+        let content = format!("---\ntitle = \"Daily Note - {}\"\n---\n\n{}\n", today, message);
         helpers::write_note_file(&note_path, &content)?;
         println!("Created daily note: {}", filename);
     }
@@ -589,43 +591,63 @@ pub fn command_shell() -> Result<()> {
     Ok(())
 }
 
+fn run_git(dir: &Path, args: &[&str]) -> Result<()> {
+    let output = Command::new("git").current_dir(dir).args(args).output()?;
+    if !output.status.success() {
+        bail!(
+            "git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(())
+}
+
 pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
     let root_dir = get_jd_dir_root()?;
     println!("jd directory is at: {root_dir:?}");
 
     if git {
-        match Repository::init(&root_dir) {
-            Ok(repo) => {
-                println!("Initialized a new Git repository in {root_dir:?}");
-                let gitignore_path = root_dir.join(".gitignore");
-                if !repo.is_empty()? {
-                    println!("Git repository is not empty. Assuming it is already set up.");
-                } else if !gitignore_path.exists() {
-                    // Correctly ignore only sensitive files. Notebooks should be tracked.
-                    fs::write(&gitignore_path, "identity.txt\nconfig.toml\n")?;
-                    println!("Created .gitignore to exclude sensitive files.");
+        let git_dir = root_dir.join(".git");
+        if git_dir.exists() {
+            println!("Git repository already exists in {root_dir:?}");
+        } else {
+            let output = Command::new("git")
+                .current_dir(&root_dir)
+                .arg("init")
+                .output()?;
+            if !output.status.success() {
+                bail!(
+                    "Failed to initialize Git repository: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                );
+            }
+            println!("Initialized a new Git repository in {root_dir:?}");
 
-                    let mut index = repo.index()?;
-                    index.add_path(Path::new(".gitignore"))?;
-                    index.write()?;
-                    let oid = index.write_tree()?;
-                    let tree = repo.find_tree(oid)?;
-                    let signature = Signature::now("jd", "jd@localhost")?;
-                    repo.commit(
-                        Some("HEAD"),
-                        &signature,
-                        &signature,
-                        "Initial commit: Add .gitignore",
-                        &tree,
-                        &[],
-                    )?;
-                    println!("Created initial commit to track .gitignore");
-                }
+            let gitignore_path = root_dir.join(".gitignore");
+            let has_commits = Command::new("git")
+                .current_dir(&root_dir)
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            if has_commits {
+                println!("Git repository is not empty. Assuming it is already set up.");
+            } else if !gitignore_path.exists() {
+                fs::write(&gitignore_path, "identity.txt\nconfig.toml\n")?;
+                println!("Created .gitignore to exclude sensitive files.");
+                run_git(&root_dir, &["add", ".gitignore"])?;
+                run_git(
+                    &root_dir,
+                    &[
+                        "-c", "user.name=jd",
+                        "-c", "user.email=jd@localhost",
+                        "commit", "-m", "Initial commit: Add .gitignore",
+                    ],
+                )?;
+                println!("Created initial commit to track .gitignore");
             }
-            Err(e) if e.code() == git2::ErrorCode::Exists => {
-                println!("Git repository already exists in {root_dir:?}")
-            }
-            Err(e) => bail!("Failed to initialize Git repository: {}", e),
         }
     }
 
@@ -726,108 +748,64 @@ pub fn command_decrypt(force: bool) -> Result<()> {
 
 pub fn command_sync() -> Result<()> {
     let root_dir = get_jd_dir_root()?;
-    let repo = Repository::open(&root_dir).map_err(|_| {
-        anyhow!(
+
+    if !root_dir.join(".git").exists() {
+        bail!(
             "jd directory at {:?} is not a Git repository. Run `jd init --git` first.",
             root_dir
-        )
-    })?;
+        );
+    }
 
     println!("Staging all changes...");
-    let mut index = repo.index()?;
-    index.add_all(["."].iter(), git2::IndexAddOption::DEFAULT, None)?;
-    index.write()?;
+    run_git(&root_dir, &["add", "."])?;
 
-    let oid = index.write_tree()?;
-    let tree = repo.find_tree(oid)?;
+    let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
+    let commit_output = Command::new("git")
+        .current_dir(&root_dir)
+        .args([
+            "-c", "user.name=jd",
+            "-c", "user.email=jd@localhost",
+            "commit", "-m", &commit_message,
+        ])
+        .output()?;
 
-    let head = repo.head();
-    let parent_commits = match head {
-        Ok(head_ref) => vec![head_ref.peel_to_commit()?],
-        Err(ref e) if e.code() == git2::ErrorCode::UnbornBranch => Vec::new(),
-        Err(e) => return Err(e.into()),
-    };
-
-    // Skip the commit if the tree is identical to the current HEAD — nothing changed.
-    if let Some(parent) = parent_commits.first() {
-        if parent.tree_id() == oid {
+    if commit_output.status.success() {
+        println!("Committed changes with message: '{commit_message}'");
+    } else {
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&commit_output.stdout),
+            String::from_utf8_lossy(&commit_output.stderr)
+        );
+        if combined.contains("nothing to commit") {
             println!("Nothing to sync — already up to date.");
             return Ok(());
         }
+        bail!(
+            "git commit failed: {}",
+            String::from_utf8_lossy(&commit_output.stderr).trim()
+        );
     }
 
-    let signature = Signature::now("jd", "jd@localhost")?;
-    let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
-    let parents_ref: Vec<&git2::Commit> = parent_commits.iter().collect();
+    let branch_output = Command::new("git")
+        .current_dir(&root_dir)
+        .args(["branch", "--show-current"])
+        .output()?;
+    if !branch_output.status.success() {
+        bail!("Could not determine current branch.");
+    }
+    let branch_name = String::from_utf8_lossy(&branch_output.stdout)
+        .trim()
+        .to_string();
+    if branch_name.is_empty() {
+        bail!("Could not get branch name. Are you in a detached HEAD state?");
+    }
 
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        &commit_message,
-        &tree,
-        &parents_ref,
-    )?;
-
-    println!("Committed changes with message: '{commit_message}'");
-
-    let head = repo.head()?;
-    let branch_name = head.shorthand().with_context(|| {
-        "Could not get branch name from HEAD. Are you in a detached HEAD state?"
-    })?;
     let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
-
-    let mut remote = repo.find_remote("origin").map_err(|_| {
-        anyhow!("Could not find remote 'origin'. Please add a remote to your git repository.")
-    })?;
-
-    let mut callbacks = RemoteCallbacks::new();
-    callbacks.credentials(|_url, username_from_git, allowed_types| {
-        let username = username_from_git.unwrap_or("git");
-
-        if allowed_types.is_user_pass_plaintext() {
-            if let Ok(token) = env::var("GITHUB_TOKEN") {
-                return Cred::userpass_plaintext(username, &token);
-            }
-        }
-
-        if allowed_types.is_ssh_key() {
-            if let Ok(cred) = Cred::ssh_key_from_agent(username) {
-                return Ok(cred);
-            }
-        }
-
-        if allowed_types.is_ssh_key() {
-            if let Some(home_dir) = dirs::home_dir() {
-                if let Ok(cred) =
-                    Cred::ssh_key(username, None, &home_dir.join(".ssh").join("id_rsa"), None)
-                {
-                    return Ok(cred);
-                }
-            }
-        }
-
-        if allowed_types.is_user_pass_plaintext() {
-            if let Ok(cred) = Cred::credential_helper(&repo.config()?, _url, Some(username)) {
-                return Ok(cred);
-            }
-        }
-
-        Err(git2::Error::new(
-            git2::ErrorCode::Auth,
-            git2::ErrorClass::Ssh,
-            "failed to acquire credentials",
-        ))
-    });
-
-    let mut push_options = PushOptions::new();
-    push_options.remote_callbacks(callbacks);
-
     println!("Pushing to remote 'origin' on branch '{branch_name}'...");
-    remote.push(&[&refspec], Some(&mut push_options))?;
+    run_git(&root_dir, &["push", "origin", &refspec])?;
 
     println!("Sync complete.");
-
     Ok(())
 }
 
@@ -840,7 +818,7 @@ pub fn command_down(entries_dir: &Path, message: &str, tags: Option<Vec<String>>
                 tags,
                 ..Default::default()
             };
-            let fm_str = serde_yaml::to_string(&frontmatter)?;
+            let fm_str = toml::to_string(&frontmatter)?;
             content.push_str("---\n");
             content.push_str(&fm_str);
             content.push_str("---\n\n");
@@ -901,13 +879,21 @@ pub fn command_new(
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        let branch = match Repository::discover(".") {
-            Ok(repo) => {
-                let head = repo.head()?;
-                head.shorthand().unwrap_or("detached-head").to_string()
-            }
-            Err(_) => "not-a-repo".to_string(),
-        };
+        let branch = Command::new("git")
+            .args(["branch", "--show-current"])
+            .output()
+            .ok()
+            .and_then(|o| {
+                if o.status.success() {
+                    String::from_utf8(o.stdout).ok().map(|s| {
+                        let t = s.trim().to_string();
+                        if t.is_empty() { "detached-head".to_string() } else { t }
+                    })
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| "not-a-repo".to_string());
 
         // Build the full substitution table up front, then apply all
         // replacements in a single pass to prevent double-substitution.
@@ -1000,7 +986,7 @@ pub fn command_tag(entries_dir: &Path, args: TagArgs) -> Result<()> {
     }
     note.frontmatter.tags.sort();
     note.frontmatter.tags.dedup();
-    let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+    let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
     let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
     helpers::write_note_file(&note.path, &new_content)?;
     Ok(())
@@ -1029,7 +1015,7 @@ fn command_toggle_pin_status(
 
     note.frontmatter.pinned = pin;
 
-    let new_frontmatter_str = serde_yaml::to_string(&note.frontmatter)?;
+    let new_frontmatter_str = toml::to_string(&note.frontmatter)?;
     let new_content = format!("---\n{}---\n\n{}", new_frontmatter_str, note.content);
     helpers::write_note_file(&note.path, &new_content)?;
 
