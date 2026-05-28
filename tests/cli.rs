@@ -1669,3 +1669,33 @@ mod daily {
         Ok(())
     }
 }
+
+#[test]
+fn test_same_second_no_collision() -> TestResult {
+    let (_temp_dir, jd_dir) = setup();
+    let entries_dir = jd_dir.join("notebooks").join("default");
+
+    // Create multiple notes without sleeping — all land in the same second.
+    for i in 0..5 {
+        Command::cargo_bin("jd")?
+            .arg(format!("rapid note {i}"))
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+    }
+
+    let count = fs::read_dir(&entries_dir)?.count();
+    assert_eq!(count, 5, "expected 5 distinct note files, got {count}");
+
+    // All 5 messages must be findable.
+    for i in 0..5 {
+        Command::cargo_bin("jd")?
+            .args(["find", &format!("rapid note {i}")])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(format!("rapid note {i}")));
+    }
+
+    Ok(())
+}

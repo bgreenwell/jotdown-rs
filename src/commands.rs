@@ -55,6 +55,22 @@ struct JsonJot {
     content: String,
 }
 
+fn unique_note_path(entries_dir: &Path) -> PathBuf {
+    let base = Local::now().format("%Y-%m-%d-%H%M%S").to_string();
+    let candidate = entries_dir.join(format!("{base}.md"));
+    if !candidate.exists() {
+        return candidate;
+    }
+    let mut n = 1u32;
+    loop {
+        let candidate = entries_dir.join(format!("{base}-{n}.md"));
+        if !candidate.exists() {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
 #[derive(Helper, Hinter, Highlighter, Validator)]
 struct JdHelper {}
 
@@ -868,9 +884,7 @@ pub fn command_down(entries_dir: &Path, message: &str, tags: Option<Vec<String>>
     }
     content.push_str(message);
     println!("Jotting down: \"{message}\"");
-    let now = Local::now();
-    let filename = now.format("%Y-%m-%d-%H%M%S.md").to_string();
-    let file_path = entries_dir.join(filename);
+    let file_path = unique_note_path(entries_dir);
     helpers::write_note_file(&file_path, &content)?;
     println!("Successfully saved to {file_path:?}");
     Ok(())
@@ -888,9 +902,7 @@ pub fn command_task(entries_dir: &Path, message: &str) -> Result<()> {
         }
     }
     println!("Jotting down task: \"{message}\"");
-    let now = Local::now();
-    let filename = now.format("%Y-%m-%d-%H%M%S.md").to_string();
-    let file_path = entries_dir.join(filename);
+    let file_path = unique_note_path(entries_dir);
     helpers::write_note_file(&file_path, &task_content)?;
     println!("Successfully saved to {file_path:?}");
     Ok(())
@@ -903,8 +915,7 @@ pub fn command_new(
 ) -> Result<()> {
     let editor = helpers::get_editor()?;
     let now = Local::now();
-    let filename = now.format("%Y-%m-%d-%H%M%S.md").to_string();
-    let file_path = entries_dir.join(filename);
+    let file_path = unique_note_path(entries_dir);
     let mut tpl_name = template_name.unwrap_or_else(|| "default".to_string());
     if !tpl_name.ends_with(".md") {
         tpl_name.push_str(".md");
