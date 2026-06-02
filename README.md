@@ -43,7 +43,7 @@
 ### Homebrew (macOS / Linux)
 
 ```sh
-brew install bgreenwell/jotdown-rs/jotdown-rs
+brew install bgreenwell/tap/jotdown-rs
 ```
 
 ### From crates.io
