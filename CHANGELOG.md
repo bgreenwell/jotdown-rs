@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-01
+
 ### Added
 - Stdin support for multiline note creation via piping.
 - Clear exit instructions in the interactive shell startup banner.

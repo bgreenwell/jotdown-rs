@@ -222,7 +222,10 @@ fn test_tag_management() -> TestResult {
     let note_path = fs::read_dir(&entries_dir)?.next().unwrap()?.path();
     let content = fs::read_to_string(&note_path)?;
     assert!(content.contains("\"rust\""), "rust tag should be present");
-    assert!(content.contains("\"testing\""), "testing tag should be present");
+    assert!(
+        content.contains("\"testing\""),
+        "testing tag should be present"
+    );
 
     // rm — bare --last removes one tag
     Command::cargo_bin("jd")?
@@ -243,8 +246,14 @@ fn test_tag_management() -> TestResult {
         .success();
 
     let content = fs::read_to_string(&note_path)?;
-    assert!(!content.contains("\"testing\""), "testing tag should be gone after set");
-    assert!(content.contains("\"archived\""), "archived tag should be set");
+    assert!(
+        !content.contains("\"testing\""),
+        "testing tag should be gone after set"
+    );
+    assert!(
+        content.contains("\"archived\""),
+        "archived tag should be set"
+    );
 
     Ok(())
 }
