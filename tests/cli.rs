@@ -1714,3 +1714,97 @@ fn test_same_second_no_collision() -> TestResult {
 
     Ok(())
 }
+
+#[test]
+fn test_clean_aborts_on_no() -> TestResult {
+    let (_temp_dir, jd_dir) = setup();
+    let entries_dir = jd_dir.join("notebooks").join("default");
+
+    Command::cargo_bin("jd")?
+        .args(["note one"])
+        .env("JD_DIR", &jd_dir)
+        .assert()
+        .success();
+
+    Command::cargo_bin("jd")?
+        .arg("clean")
+        .env("JD_DIR", &jd_dir)
+        .write_stdin("n\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Aborted"));
+
+    assert_eq!(
+        fs::read_dir(&entries_dir)?.count(),
+        1,
+        "note should still exist after abort"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_clean_deletes_on_double_confirm() -> TestResult {
+    let (_temp_dir, jd_dir) = setup();
+    let entries_dir = jd_dir.join("notebooks").join("default");
+
+    for msg in ["note one", "note two", "note three"] {
+        Command::cargo_bin("jd")?
+            .args([msg])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+    }
+    assert_eq!(fs::read_dir(&entries_dir)?.count(), 3);
+
+    Command::cargo_bin("jd")?
+        .arg("clean")
+        .env("JD_DIR", &jd_dir)
+        .write_stdin("y\ny\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 3 notes"));
+
+    assert_eq!(
+        fs::read_dir(&entries_dir)?.count(),
+        0,
+        "all notes should be gone"
+    );
+    Ok(())
+}
+
+#[test]
+fn test_clean_all_clears_every_notebook() -> TestResult {
+    let (_temp_dir, jd_dir) = setup();
+
+    // Create notes in two notebooks
+    Command::cargo_bin("jd")?
+        .args(["note in default"])
+        .env("JD_DIR", &jd_dir)
+        .assert()
+        .success();
+
+    fs::create_dir_all(jd_dir.join("notebooks").join("work"))?;
+    Command::cargo_bin("jd")?
+        .args(["note in work", "--notebook", "work"])
+        .env("JD_DIR", &jd_dir)
+        .assert()
+        .success();
+
+    Command::cargo_bin("jd")?
+        .args(["clean", "--all"])
+        .env("JD_DIR", &jd_dir)
+        .write_stdin("y\ny\n")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted 2 notes"));
+
+    assert_eq!(
+        fs::read_dir(jd_dir.join("notebooks").join("default"))?.count(),
+        0
+    );
+    assert_eq!(
+        fs::read_dir(jd_dir.join("notebooks").join("work"))?.count(),
+        0
+    );
+    Ok(())
+}

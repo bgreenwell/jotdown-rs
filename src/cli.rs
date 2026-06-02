@@ -276,6 +276,13 @@ pub enum Commands {
     /// Enter the interactive jd shell.
     #[command(alias = "sh")]
     Shell,
+
+    /// Delete all notes in the active notebook (or all notebooks with --all).
+    Clean {
+        /// Delete all notes across every notebook, not just the active one.
+        #[arg(long, short)]
+        all: bool,
+    },
 }
 
 #[derive(Args, Debug)]
