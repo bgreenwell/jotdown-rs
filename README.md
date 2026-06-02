@@ -4,7 +4,6 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/bgreenwell/jotdown-rs/ci.yml?style=for-the-badge)](https://github.com/bgreenwell/jotdown-rs/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/jotdown-rs.svg?style=for-the-badge)](https://crates.io/crates/jotdown-rs)
-[![Downloads](https://img.shields.io/crates/d/jotdown-rs?style=for-the-badge)](https://crates.io/crates/jotdown-rs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
 [![Easy Install](https://img.shields.io/badge/Easy%20Install-Homebrew%20%7C%20Scoop-FBB040?style=for-the-badge)](#installation)
