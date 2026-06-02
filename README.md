@@ -1,4 +1,4 @@
-# jotdown-rs
+# jotdown-rs <img src="assets/logo.png" align="right" width="120" />
 
 `jotdown-rs` is a fast, minimalist command-line tool for capturing thoughts without friction. The core workflow is a single command: type `jd 'your thought'` and move on. Everything else — notebooks, encryption, git sync, templates — is available when you need it and invisible when you don't.
 
