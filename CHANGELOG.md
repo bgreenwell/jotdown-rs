@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-02
+
+### Added
+- `jd clean` command to delete all notes in the active notebook (or all notebooks with `--all`), with a double confirmation prompt.
+
 ## [0.2.0] - 2026-06-01
 
 ### Added

@@ -1,6 +1,6 @@
 [package]
 name = "jotdown-rs"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Brandon Greenwell <greenwell.brandon@gmail.com>"]
 edition = "2021"
 description = "A minimalist, command-line jotting utility that's fast, private, and git-friendly."
