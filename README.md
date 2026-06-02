@@ -40,25 +40,21 @@
 
 ## Installation
 
-### From crates.io (recommended)
+### Homebrew (macOS / Linux)
 
-This method automatically downloads, compiles, and installs `jd` on your system.
+```sh
+brew install bgreenwell/jotdown-rs/jotdown-rs
+```
 
-1.  **Install the Rust toolchain**
+### From crates.io
 
-    If you don't already have it, install Rust from the official site: [rustup.rs](https://rustup.rs/).
+Requires the [Rust toolchain](https://rustup.rs/).
 
-2.  **Install `jd`**
-
-    ```sh
-    cargo install jotdown-rs
-    ```
-
-    This will place the `jd` executable in your cargo binary path (usually `~/.cargo/bin/`), making it available from anywhere in your terminal.
+```sh
+cargo install jotdown-rs
+```
 
 ### From source
-
-To build the very latest version directly from the source code:
 
 ```sh
 git clone https://github.com/bgreenwell/jotdown-rs.git
