@@ -204,6 +204,7 @@ fn test_info_command() -> TestResult {
 #[test]
 fn test_tag_management() -> TestResult {
     let (_temp_dir, jd_dir) = setup();
+    let entries_dir = jd_dir.join("notebooks").join("default");
 
     Command::cargo_bin("jd")?
         .arg("note for tags")
@@ -211,34 +212,39 @@ fn test_tag_management() -> TestResult {
         .assert()
         .success();
 
+    // add — bare --last (no =1) must work the same as --last=1
     Command::cargo_bin("jd")?
-        .args(["tag", "add", "--last=1", "rust", "testing"])
+        .args(["tag", "add", "--last", "rust,testing"])
         .env("JD_DIR", &jd_dir)
         .assert()
         .success();
 
-    Command::cargo_bin("jd")?
-        .args(["show", "--last", "--raw"])
-        .env("JD_DIR", &jd_dir)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("note for tags"));
+    let note_path = fs::read_dir(&entries_dir)?.next().unwrap()?.path();
+    let content = fs::read_to_string(&note_path)?;
+    assert!(content.contains("\"rust\""), "rust tag should be present");
+    assert!(content.contains("\"testing\""), "testing tag should be present");
 
-    // Verify tags are actually there by using tag command or checking frontmatter (manual)
-    // Actually, tag management test should verify addition and removal.
-
+    // rm — bare --last removes one tag
     Command::cargo_bin("jd")?
-        .args(["tag", "rm", "--last=1", "rust"])
+        .args(["tag", "rm", "--last", "rust"])
         .env("JD_DIR", &jd_dir)
         .assert()
         .success();
 
+    let content = fs::read_to_string(&note_path)?;
+    assert!(!content.contains("\"rust\""), "rust tag should be removed");
+    assert!(content.contains("\"testing\""), "testing tag should remain");
+
+    // set — bare --last overwrites all tags
     Command::cargo_bin("jd")?
-        .args(["show", "--last", "--raw"])
+        .args(["tag", "set", "--last", "archived"])
         .env("JD_DIR", &jd_dir)
         .assert()
-        .success()
-        .stdout(predicate::str::contains("note for tags"));
+        .success();
+
+    let content = fs::read_to_string(&note_path)?;
+    assert!(!content.contains("\"testing\""), "testing tag should be gone after set");
+    assert!(content.contains("\"archived\""), "archived tag should be set");
 
     Ok(())
 }

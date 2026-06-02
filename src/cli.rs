@@ -378,7 +378,7 @@ pub enum TagAction {
         #[arg(long, short = 'p', group = "target", required = true)]
         id_prefix: Option<String>,
         /// Target the Nth most recent note.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The tags to add.
         #[arg(required = true, value_delimiter = ',')]
@@ -391,7 +391,7 @@ pub enum TagAction {
         #[arg(long, short = 'p', group = "target", required = true)]
         id_prefix: Option<String>,
         /// Target the Nth most recent note.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The tags to remove.
         #[arg(required = true, value_delimiter = ',')]
@@ -403,7 +403,7 @@ pub enum TagAction {
         #[arg(long, short = 'p', group = "target", required = true)]
         id_prefix: Option<String>,
         /// Target the Nth most recent note.
-        #[arg(long, short, group = "target")]
+        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
         last: Option<usize>,
         /// The new set of tags.
         #[arg(required = true, value_delimiter = ',')]
