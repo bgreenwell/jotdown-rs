@@ -41,8 +41,6 @@
 
 ## Installation
 
-**Note:** Once this project gains stable releases, you will be able to install it via your system's package manager (e.g., `apt`, `brew`, etc.). Until then, you can use the methods below.
-
 ### From crates.io (recommended)
 
 This method automatically downloads, compiles, and installs `jd` on your system.
@@ -54,7 +52,7 @@ This method automatically downloads, compiles, and installs `jd` on your system.
 2.  **Install `jd`**
 
     ```sh
-    cargo install jd
+    cargo install jotdown-rs
     ```
 
     This will place the `jd` executable in your cargo binary path (usually `~/.cargo/bin/`), making it available from anywhere in your terminal.
@@ -65,7 +63,7 @@ To build the very latest version directly from the source code:
 
 ```sh
 git clone https://github.com/bgreenwell/jotdown-rs.git
-cd rjot
+cd jotdown-rs
 cargo install --path .
 ```
 
@@ -235,14 +233,20 @@ An asterisk (`*`) indicates the active notebook.
 ❯ jd notebook list
 ```
 
-**3. Switch the active notebook:**
+**3. Show the currently active notebook:**
+
+```sh
+❯ jd notebook status
+```
+
+**4. Switch the active notebook:**
 Since a child process cannot modify the parent shell's environment, use `eval` to update the `JD_ACTIVE_NOTEBOOK` variable.
 
 ```sh
 ❯ eval $(jd notebook use project-icarus)
 ```
 
-**4. Perform a single action in another notebook:**
+**5. Perform a single action in another notebook:**
 
 ```sh
 ❯ jd 'Remember to buy milk' --notebook personal
@@ -255,6 +259,10 @@ Since a child process cannot modify the parent shell's environment, use `eval` t
 ```sh
 ❯ jd list
 ❯ jd list 5
+
+# Output as JSON or CSV
+❯ jd list --format json
+❯ jd list --format csv
 ```
 
 **2. Full-text search:**
@@ -265,6 +273,9 @@ Since a child process cannot modify the parent shell's environment, use `eval` t
 
 # Search all notebooks
 ❯ jd find 'database' --all
+
+# Show surrounding context for each match
+❯ jd find 'database' --context
 ```
 
 **3. Filter by tags:**
@@ -286,6 +297,12 @@ Since a child process cannot modify the parent shell's environment, use `eval` t
 
 ```sh
 ❯ jd week --compile > weekly-summary.md
+```
+
+**6. Fuzzy-find and open a note interactively (macOS / Linux):**
+
+```sh
+❯ jd select
 ```
 
 ### Managing specific notes
@@ -400,19 +417,19 @@ This creates a note formatted as a Markdown task: `- [ ] Set up the new database
 **1. Add tags:**
 
 ```sh
-❯ jd tag add --last=1 rust,idea
+❯ jd tag add --last rust,idea
 ```
 
 **2. Remove tags:**
 
 ```sh
-❯ jd tag rm -p 2025-06-09 idea
+❯ jd tag rm --last idea
 ```
 
 **3. Overwrite tags:**
 
 ```sh
-❯ jd tag set --last=2 archived
+❯ jd tag set --last archived
 ```
 
 ### Importing and exporting notebooks
@@ -439,8 +456,11 @@ jd import ./work_backup.zip
 # Show storage paths
 ❯ jd info --paths
 
-# Show statistics
+# Show statistics for the active notebook
 ❯ jd info --stats
+
+# Show statistics across all notebooks
+❯ jd info --stats --all
 ```
 
 ### Git integration (optional)

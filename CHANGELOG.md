@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file. The format is b
 - `jd sync` now delegates to the system `git` binary, inheriting the user's global git config, signing keys, and hooks.
 
 ### Fixed
+- Notes created within the same second no longer overwrite each other; a `-1`, `-2`, etc. suffix is appended automatically.
+- `jd tag add/rm/set --last` now works without an explicit number, consistent with all other `--last` flags.
 - `-t`/`--tags` flag no longer consumes the note message as a tag value; `-t rust,notes "my note"` now works as expected.
 - `jd sync` no longer creates an empty commit when there are no staged changes.
 - `--last` flag now selects notes by filename (creation time) rather than modification time.

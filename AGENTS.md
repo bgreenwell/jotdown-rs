@@ -31,7 +31,7 @@ A minimalist command-line jotting utility written in Rust, designed for fast cap
 - **Build**: `cargo build`
 - **Run**: `cargo run -- [COMMAND] [ARGS]` (or `jd` once installed)
 - **Test**: `cargo test`
-- **Lint**: `cargo clippy`
+- **Lint**: `cargo clippy -- -D warnings`
 - **Format**: `cargo fmt`
 
 ## Development conventions
@@ -56,7 +56,7 @@ title = "My Note Title"
 ---
 Body content here.
 ```
-- Standard timed jots: `YYYY-MM-DD-HHMMSS.md`
+- Standard timed jots: `YYYY-MM-DD-HHMMSS.md` (or `YYYY-MM-DD-HHMMSS-N.md` when the same second is used more than once)
 - Daily notes: `YYYY-MM-DD.md`
 
 ### Git workflow
