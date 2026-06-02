@@ -33,6 +33,8 @@
           };
           doCheck = true;
 
+          nativeBuildInputs = [ pkgs.git ];
+
           meta = with pkgs.lib; {
             description = "A minimalist, command-line jotting utility that's fast, private, and git-friendly";
             homepage = "https://github.com/bgreenwell/jotdown-rs";
