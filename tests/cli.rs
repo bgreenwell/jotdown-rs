@@ -2090,3 +2090,127 @@ mod encryption_hardening {
         Ok(())
     }
 }
+
+// Tests that no user-supplied name can escape the notebooks directory.
+#[cfg(test)]
+mod path_validation {
+    use super::*;
+
+    fn create_note(jd_dir: &PathBuf, message: &str) -> TestResult {
+        Command::cargo_bin("jd")?
+            .arg(message)
+            .env("JD_DIR", jd_dir)
+            .assert()
+            .success();
+        Ok(())
+    }
+
+    #[test]
+    fn test_rename_cannot_escape_notebook() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        create_note(&jd_dir, "escape attempt")?;
+
+        Command::cargo_bin("jd")?
+            .args(["rename", "--last", "../escaped-note"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("Invalid name"));
+
+        assert!(!jd_dir.join("notebooks").join("escaped-note.md").exists());
+        // The original note is untouched.
+        assert_eq!(
+            fs::read_dir(jd_dir.join("notebooks").join("default"))?.count(),
+            1
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_move_cannot_escape_notebooks_dir() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        create_note(&jd_dir, "escape attempt")?;
+
+        Command::cargo_bin("jd")?
+            .args(["move", "--last", "../.."])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("Invalid destination"));
+
+        assert_eq!(
+            fs::read_dir(jd_dir.join("notebooks").join("default"))?.count(),
+            1
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_active_notebook_env_var_is_validated() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("list")
+            .env("JD_DIR", &jd_dir)
+            .env("JD_ACTIVE_NOTEBOOK", "../..")
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("Invalid notebook name"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_notebook_flag_is_validated() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .args(["list", "--notebook", "../evil"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("Invalid notebook name"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_json_import_rejects_traversal_filenames() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+
+        let payload = r#"{"notebook_name":"evil","jots":[{"filename":"../../../pwned.md","content":"escaped!"}]}"#;
+        let payload_path = temp_dir.path().join("payload.json");
+        fs::write(&payload_path, payload)?;
+
+        Command::cargo_bin("jd")?
+            .arg("import")
+            .arg(&payload_path)
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("Invalid filename"));
+
+        assert!(!jd_dir.join("pwned.md").exists());
+        assert!(!temp_dir.path().join("pwned.md").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn test_json_import_rejects_traversal_notebook_name() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+
+        let payload =
+            r#"{"notebook_name":"../outside","jots":[{"filename":"a.md","content":"x"}]}"#;
+        let payload_path = temp_dir.path().join("payload.json");
+        fs::write(&payload_path, payload)?;
+
+        Command::cargo_bin("jd")?
+            .arg("import")
+            .arg(&payload_path)
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("Invalid notebook name"));
+
+        assert!(!jd_dir.join("outside").exists());
+        Ok(())
+    }
+}

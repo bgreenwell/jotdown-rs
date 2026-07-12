@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file. The format is b
 - `jd init --git` on a pre-existing repository now adds the missing `.gitignore` entries for sensitive files.
 - Importing a ZIP archive now encrypts notes when encryption is enabled, and no longer creates empty files from directory entries.
 - `jd export` warns that the output is plaintext when the journal is encrypted.
+- `jd rename`, `jd move`, JSON imports, the `--notebook` flag, and the `JD_ACTIVE_NOTEBOOK` environment variable now reject names with path separators or traversal components, closing several ways to write files outside the notebooks directory.
 
 ## [0.2.1] - 2026-06-02
 

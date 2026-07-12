@@ -108,6 +108,40 @@ pub fn get_notebooks_dir() -> Result<PathBuf> {
     Ok(notebooks_dir)
 }
 
+/// Validates a notebook name: rejects empty names, dot components, and any
+/// path-separator or shell-special characters, so a name can never escape the
+/// notebooks directory or inject into a shell.
+pub fn is_valid_notebook_name(name: &str) -> bool {
+    if name.is_empty() || name == "." || name == ".." {
+        return false;
+    }
+    !name.chars().any(|c| {
+        matches!(
+            c,
+            '/' | '\\'
+                | '"'
+                | '\''
+                | '`'
+                | '$'
+                | '!'
+                | '&'
+                | '|'
+                | ';'
+                | '('
+                | ')'
+                | '<'
+                | '>'
+                | '\0'
+        )
+    })
+}
+
+/// Validates a note filename: it must be a plain file name with no path
+/// separators or traversal components, so it can never escape the notebook.
+pub fn is_valid_note_filename(name: &str) -> bool {
+    !name.is_empty() && Path::new(name).file_name().map(|f| f == name) == Some(true)
+}
+
 /// Gets the `entries` directory for the currently active notebook.
 /// This is the core of the multi-notebook feature. It resolves the path based on this priority:
 /// 1. The `--notebook` command-line flag (passed in as `notebook_override`).
@@ -125,6 +159,10 @@ pub fn get_active_entries_dir(notebook_override: Option<String>) -> Result<PathB
     } else {
         "default".to_string()
     };
+
+    if !is_valid_notebook_name(&notebook_name) {
+        bail!("Invalid notebook name: '{}'.", notebook_name);
+    }
 
     let entries_dir = notebooks_root.join(notebook_name);
     if !entries_dir.exists() {

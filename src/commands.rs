@@ -40,7 +40,7 @@ use crate::cli::{
 };
 use crate::helpers::{
     self, get_jd_dir_root, get_note_path_for_action, get_notebooks_dir, get_templates_dir,
-    parse_note_from_file, Frontmatter, TaskStats,
+    is_valid_notebook_name, parse_note_from_file, Frontmatter, TaskStats,
 };
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -140,31 +140,6 @@ pub fn command_notebook(args: NotebookArgs) -> Result<()> {
         NotebookAction::Status => command_notebook_status()?,
     }
     Ok(())
-}
-
-fn is_valid_notebook_name(name: &str) -> bool {
-    if name.is_empty() || name == "." || name == ".." {
-        return false;
-    }
-    !name.chars().any(|c| {
-        matches!(
-            c,
-            '/' | '\\'
-                | '"'
-                | '\''
-                | '`'
-                | '$'
-                | '!'
-                | '&'
-                | '|'
-                | ';'
-                | '('
-                | ')'
-                | '<'
-                | '>'
-                | '\0'
-        )
-    })
 }
 
 fn command_notebook_new(name: &str) -> Result<()> {
@@ -384,6 +359,9 @@ pub fn command_move(
         .file_name()
         .ok_or_else(|| anyhow!("Invalid filename"))?;
 
+    if !is_valid_notebook_name(destination) {
+        bail!("Invalid destination notebook name: '{}'.", destination);
+    }
     let dest_dir = get_notebooks_dir()?.join(destination);
     if !dest_dir.exists() {
         bail!("Destination notebook '{}' does not exist.", destination);
@@ -415,6 +393,13 @@ pub fn command_rename(
     let mut dest_filename = new_name.to_string();
     if !dest_filename.ends_with(".md") {
         dest_filename.push_str(".md");
+    }
+
+    if !helpers::is_valid_note_filename(&dest_filename) {
+        bail!(
+            "Invalid name: '{}'. Names cannot contain path separators or traversal components.",
+            new_name
+        );
     }
 
     let dest_path = entries_dir.join(&dest_filename);
@@ -1736,6 +1721,12 @@ fn import_from_zip(file_path: &Path) -> Result<()> {
 fn import_from_json(file_path: &Path) -> Result<()> {
     let json_string = fs::read_to_string(file_path)?;
     let export_data: JsonExport = serde_json::from_str(&json_string)?;
+    if !is_valid_notebook_name(&export_data.notebook_name) {
+        bail!(
+            "Invalid notebook name in import file: '{}'.",
+            export_data.notebook_name
+        );
+    }
     let notebooks_dir = get_notebooks_dir()?;
     let new_notebook_path = notebooks_dir.join(&export_data.notebook_name);
 
@@ -1748,6 +1739,10 @@ fn import_from_json(file_path: &Path) -> Result<()> {
     fs::create_dir_all(&new_notebook_path)?;
 
     for jot in export_data.jots {
+        // Reject filenames with path traversal components or absolute paths.
+        if !helpers::is_valid_note_filename(&jot.filename) {
+            bail!("Invalid filename in import file: '{}'.", jot.filename);
+        }
         let jot_path = new_notebook_path.join(jot.filename);
         helpers::write_note_file(&jot_path, &jot.content)?;
     }
