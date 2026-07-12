@@ -168,15 +168,82 @@ pub fn get_editor() -> Result<String> {
     bail!("Could not find a default editor. Please set the $EDITOR environment variable.")
 }
 
+/// Loads the user's `config.toml` from the jd root, or a default when absent.
+fn load_config() -> Result<Config> {
+    let config_path = get_jd_dir_root()?.join("config.toml");
+    if config_path.exists() {
+        Ok(toml::from_str(&fs::read_to_string(config_path)?)?)
+    } else {
+        Ok(Config::default())
+    }
+}
+
+/// Returns the configured encryption recipient (public key), if any.
+pub fn encryption_recipient() -> Result<Option<String>> {
+    Ok(load_config()?.recipient)
+}
+
+/// Writes `contents` to `path` readable only by the owner (0o600 on Unix).
+/// Used for the age private key and for plaintext temp files during editing.
+pub fn write_private_file(path: &Path, contents: &[u8]) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        file.write_all(contents)?;
+    }
+    #[cfg(not(unix))]
+    fs::write(path, contents)?;
+    Ok(())
+}
+
+/// Opens a note in the user's editor. When encryption is enabled, the note is
+/// decrypted to a private temporary file for editing and re-encrypted after
+/// the editor exits — the editor never sees ciphertext, and the note is never
+/// left unencrypted on disk.
+pub fn edit_note_file(path: &Path) -> Result<()> {
+    let editor = get_editor()?;
+
+    if encryption_recipient()?.is_none() {
+        let status = std::process::Command::new(&editor).arg(path).status()?;
+        if !status.success() {
+            bail!("Editor exited with a non-zero status.");
+        }
+        return Ok(());
+    }
+
+    let tmp_dir = get_jd_dir_root()?.join("tmp");
+    fs::create_dir_all(&tmp_dir)?;
+    let filename = path
+        .file_name()
+        .ok_or_else(|| anyhow!("Invalid note path: {path:?}"))?;
+    let tmp_path = tmp_dir.join(filename);
+    let content = read_note_file(path)?;
+    write_private_file(&tmp_path, content.as_bytes())?;
+
+    let result = (|| {
+        let status = std::process::Command::new(&editor)
+            .arg(&tmp_path)
+            .status()?;
+        if !status.success() {
+            bail!("Editor exited with a non-zero status.");
+        }
+        let edited = fs::read_to_string(&tmp_path)?;
+        write_note_file(path, &edited)
+    })();
+    // Best-effort removal of the plaintext temp file, even if editing failed.
+    let _ = fs::remove_file(&tmp_path);
+    result
+}
+
 /// Writes content to a note file, encrypting it if encryption is enabled.
 pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
-    let root_dir = get_jd_dir_root()?;
-    let config_path = root_dir.join("config.toml");
-    let config: Config = if config_path.exists() {
-        toml::from_str(&fs::read_to_string(config_path)?)?
-    } else {
-        Config::default()
-    };
+    let config = load_config()?;
 
     if let Some(recipient_str) = config.recipient {
         let recipient: Recipient = recipient_str

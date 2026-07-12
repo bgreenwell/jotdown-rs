@@ -1808,3 +1808,285 @@ fn test_clean_all_clears_every_notebook() -> TestResult {
     );
     Ok(())
 }
+
+// Tests for the encryption hardening work (key perms, edit cycle, sync guard,
+// import/export behavior with encryption enabled).
+#[cfg(test)]
+mod encryption_hardening {
+    use super::*;
+
+    fn init_encrypted(jd_dir: &PathBuf) -> TestResult {
+        Command::cargo_bin("jd")?
+            .args(["init", "--encrypt"])
+            .env("JD_DIR", jd_dir)
+            .assert()
+            .success();
+        Ok(())
+    }
+
+    /// Writes an executable fake-editor script and returns its path (Unix only).
+    #[cfg(unix)]
+    fn fake_editor(dir: &std::path::Path, script_body: &str) -> TestResult2<PathBuf> {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join("fake_editor.sh");
+        fs::write(&path, format!("#!/bin/sh\n{script_body}\n"))?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))?;
+        Ok(path)
+    }
+
+    #[cfg(unix)]
+    type TestResult2<T> = Result<T, Box<dyn std::error::Error>>;
+
+    #[test]
+    #[cfg(unix)]
+    fn test_identity_file_is_owner_only() -> TestResult {
+        use std::os::unix::fs::PermissionsExt;
+        let (_temp_dir, jd_dir) = setup();
+        init_encrypted(&jd_dir)?;
+
+        let mode = fs::metadata(jd_dir.join("identity.txt"))?
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600, "identity.txt must be 0600");
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_edit_encrypted_note_shows_plaintext_and_reencrypts() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+        init_encrypted(&jd_dir)?;
+
+        Command::cargo_bin("jd")?
+            .arg("original secret")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // The fake editor records what it was shown, then replaces the content.
+        let seen_path = temp_dir.path().join("seen.txt");
+        let editor = fake_editor(
+            temp_dir.path(),
+            &format!(
+                "cp \"$1\" {seen}\nprintf 'edited secret' > \"$1\"",
+                seen = seen_path.display()
+            ),
+        )?;
+
+        Command::cargo_bin("jd")?
+            .args(["edit", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .env("EDITOR", &editor)
+            .assert()
+            .success();
+
+        // The editor must have been shown plaintext, not age ciphertext.
+        let seen = fs::read_to_string(&seen_path)?;
+        assert!(seen.contains("original secret"));
+        assert!(!seen.contains("age-encryption.org"));
+
+        // The note on disk must be re-encrypted with the edited content readable.
+        let note_path = fs::read_dir(jd_dir.join("notebooks").join("default"))?
+            .next()
+            .unwrap()?
+            .path();
+        assert!(fs::read(&note_path)?.starts_with(b"age-encryption.org"));
+        Command::cargo_bin("jd")?
+            .args(["show", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("edited secret"));
+
+        // No plaintext temp file may be left behind.
+        let tmp_dir = jd_dir.join("tmp");
+        if tmp_dir.exists() {
+            assert_eq!(fs::read_dir(&tmp_dir)?.count(), 0);
+        }
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_new_encrypted_note_editor_sees_template_plaintext() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+        init_encrypted(&jd_dir)?;
+
+        let templates_dir = jd_dir.join("templates");
+        fs::create_dir_all(&templates_dir)?;
+        fs::write(templates_dir.join("default.md"), "TEMPLATE_MARKER")?;
+
+        let seen_path = temp_dir.path().join("seen.txt");
+        let editor = fake_editor(
+            temp_dir.path(),
+            &format!(
+                "cp \"$1\" {seen}\nprintf 'typed in editor' > \"$1\"",
+                seen = seen_path.display()
+            ),
+        )?;
+
+        Command::cargo_bin("jd")?
+            .arg("new")
+            .env("JD_DIR", &jd_dir)
+            .env("EDITOR", &editor)
+            .assert()
+            .success();
+
+        let seen = fs::read_to_string(&seen_path)?;
+        assert!(seen.contains("TEMPLATE_MARKER"));
+        assert!(!seen.contains("age-encryption.org"));
+
+        let note_path = fs::read_dir(jd_dir.join("notebooks").join("default"))?
+            .next()
+            .unwrap()?
+            .path();
+        assert!(
+            fs::read(&note_path)?.starts_with(b"age-encryption.org"),
+            "note saved from the editor must be encrypted on disk"
+        );
+        Command::cargo_bin("jd")?
+            .args(["show", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("typed in editor"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_zip_import_respects_encryption() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+
+        // Build a plaintext zip via export before enabling encryption.
+        Command::cargo_bin("jd")?
+            .arg("portable note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+        let zip_path = temp_dir.path().join("imported.zip");
+        Command::cargo_bin("jd")?
+            .args(["export", "default", "--output"])
+            .arg(&zip_path)
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        init_encrypted(&jd_dir)?;
+
+        Command::cargo_bin("jd")?
+            .arg("import")
+            .arg(&zip_path)
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let imported_dir = jd_dir.join("notebooks").join("imported");
+        let note_path = fs::read_dir(&imported_dir)?.next().unwrap()?.path();
+        assert!(
+            fs::read(&note_path)?.starts_with(b"age-encryption.org"),
+            "zip import must encrypt notes when encryption is enabled"
+        );
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--notebook", "imported"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("portable note"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_export_warns_about_plaintext_when_encrypted() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+        init_encrypted(&jd_dir)?;
+
+        Command::cargo_bin("jd")?
+            .arg("a secret")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["export", "default", "--output"])
+            .arg(temp_dir.path().join("out.zip"))
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stderr(predicate::str::contains("PLAINTEXT"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_sync_never_stages_identity_or_config() -> TestResult {
+        let (temp_dir, jd_dir) = setup();
+
+        // A pre-existing repo (user ran `git init` themselves): no .gitignore.
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .current_dir(&jd_dir)
+                .args(args)
+                .output()
+                .expect("git failed")
+        };
+        assert!(git(&["init"]).status.success());
+        let remote = temp_dir.path().join("remote.git");
+        assert!(std::process::Command::new("git")
+            .args(["init", "--bare"])
+            .arg(&remote)
+            .output()?
+            .status
+            .success());
+        assert!(git(&["remote", "add", "origin", remote.to_str().unwrap()])
+            .status
+            .success());
+
+        init_encrypted(&jd_dir)?;
+        Command::cargo_bin("jd")?
+            .arg("a synced note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .arg("sync")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let tracked = String::from_utf8(git(&["ls-files"]).stdout)?;
+        assert!(
+            !tracked.contains("identity.txt"),
+            "identity.txt must never be committed by sync; tracked files:\n{tracked}"
+        );
+        assert!(
+            !tracked.contains("config.toml"),
+            "config.toml must never be committed by sync; tracked files:\n{tracked}"
+        );
+        assert!(tracked.contains("notebooks/"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_init_git_on_existing_repo_adds_gitignore() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        assert!(std::process::Command::new("git")
+            .current_dir(&jd_dir)
+            .arg("init")
+            .output()?
+            .status
+            .success());
+
+        Command::cargo_bin("jd")?
+            .args(["init", "--git"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Updated .gitignore"));
+
+        let gitignore = fs::read_to_string(jd_dir.join(".gitignore"))?;
+        assert!(gitignore.contains("identity.txt"));
+        assert!(gitignore.contains("config.toml"));
+        Ok(())
+    }
+}

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use age::{secrecy::ExposeSecret, x25519, Decryptor, Identity};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::{Datelike, Local, NaiveDate};
 use clap::Parser;
 use rand::Rng;
@@ -650,6 +650,35 @@ fn run_git(dir: &Path, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
+/// Ensures the jd root's `.gitignore` excludes the sensitive files
+/// (`identity.txt`, `config.toml`), appending any missing entries.
+/// Returns `true` if the file was created or updated.
+fn ensure_gitignore(root_dir: &Path) -> Result<bool> {
+    let gitignore_path = root_dir.join(".gitignore");
+    let existing = if gitignore_path.exists() {
+        fs::read_to_string(&gitignore_path)?
+    } else {
+        String::new()
+    };
+
+    let mut updated = existing.clone();
+    for entry in ["identity.txt", "config.toml"] {
+        if !existing.lines().any(|line| line.trim() == entry) {
+            if !updated.is_empty() && !updated.ends_with('\n') {
+                updated.push('\n');
+            }
+            updated.push_str(entry);
+            updated.push('\n');
+        }
+    }
+
+    if updated != existing {
+        fs::write(&gitignore_path, updated)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
     let root_dir = get_jd_dir_root()?;
     println!("jd directory is at: {root_dir:?}");
@@ -658,6 +687,9 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
         let git_dir = root_dir.join(".git");
         if git_dir.exists() {
             println!("Git repository already exists in {root_dir:?}");
+            if ensure_gitignore(&root_dir)? {
+                println!("Updated .gitignore to exclude sensitive files.");
+            }
         } else {
             let output = Command::new("git")
                 .current_dir(&root_dir)
@@ -672,7 +704,10 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
             }
             println!("Initialized a new Git repository in {root_dir:?}");
 
-            let gitignore_path = root_dir.join(".gitignore");
+            if ensure_gitignore(&root_dir)? {
+                println!("Created .gitignore to exclude sensitive files.");
+            }
+
             let has_commits = Command::new("git")
                 .current_dir(&root_dir)
                 .args(["rev-parse", "HEAD"])
@@ -680,11 +715,7 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
                 .map(|o| o.status.success())
                 .unwrap_or(false);
 
-            if has_commits {
-                println!("Git repository is not empty. Assuming it is already set up.");
-            } else if !gitignore_path.exists() {
-                fs::write(&gitignore_path, "identity.txt\nconfig.toml\n")?;
-                println!("Created .gitignore to exclude sensitive files.");
+            if !has_commits {
                 run_git(&root_dir, &["add", ".gitignore"])?;
                 run_git(
                     &root_dir,
@@ -711,7 +742,11 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
         if identity_path.exists() {
             println!("Encryption identity already exists. Doing nothing.");
         } else {
-            fs::write(&identity_path, identity.to_string().expose_secret())?;
+            // The private key must never be world-readable.
+            helpers::write_private_file(
+                &identity_path,
+                identity.to_string().expose_secret().as_bytes(),
+            )?;
             println!("Generated new encryption identity at: {identity_path:?}");
             println!("\nIMPORTANT: Back this file up somewhere safe!");
 
@@ -810,6 +845,20 @@ pub fn command_sync() -> Result<()> {
 
     println!("Staging all changes...");
     run_git(&root_dir, &["add", "."])?;
+
+    // Never sync the private key or config, even when .gitignore is missing
+    // (e.g. the repo was created by hand rather than `jd init --git`).
+    run_git(
+        &root_dir,
+        &[
+            "rm",
+            "--cached",
+            "--ignore-unmatch",
+            "--quiet",
+            "identity.txt",
+            "config.toml",
+        ],
+    )?;
 
     let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
     let commit_output = Command::new("git")
@@ -913,7 +962,8 @@ pub fn command_new(
     template_name: Option<String>,
     variables: Vec<(String, String)>,
 ) -> Result<()> {
-    let editor = helpers::get_editor()?;
+    // Fail early, before creating the note file, if no editor is available.
+    helpers::get_editor()?;
     let now = Local::now();
     let file_path = unique_note_path(entries_dir);
     let mut tpl_name = template_name.unwrap_or_else(|| "default".to_string());
@@ -977,10 +1027,7 @@ pub fn command_new(
         }
     }
     helpers::write_note_file(&file_path, &initial_content)?;
-    let status = Command::new(&editor).arg(&file_path).status()?;
-    if !status.success() {
-        bail!("Editor exited with a non-zero status.");
-    }
+    helpers::edit_note_file(&file_path)?;
     let final_content = helpers::read_note_file(&file_path)?;
     if final_content.trim().is_empty() {
         fs::remove_file(&file_path)?;
@@ -998,10 +1045,7 @@ pub fn command_edit(note_path: PathBuf) -> Result<()> {
         &note_path.file_name().unwrap(),
         &editor
     );
-    let status = Command::new(&editor).arg(&note_path).status()?;
-    if !status.success() {
-        bail!("Editor exited with a non-zero status.");
-    }
+    helpers::edit_note_file(&note_path)?;
     println!("Finished editing {:?}.", &note_path.file_name().unwrap());
     Ok(())
 }
@@ -1573,6 +1617,12 @@ pub fn command_export(args: ExportArgs) -> Result<()> {
         bail!("Notebook '{}' not found.", args.notebook_name);
     }
 
+    if helpers::encryption_recipient()?.is_some() {
+        eprintln!(
+            "Warning: exports are written as PLAINTEXT. Your encrypted notes will be decrypted in the output file."
+        );
+    }
+
     match args.format.as_str() {
         "zip" => export_to_zip(&notebook_path, &args.output)?,
         "json" => export_to_json(&notebook_path, &args.notebook_name, &args.output)?,
@@ -1661,14 +1711,22 @@ fn import_from_zip(file_path: &Path) -> Result<()> {
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
+        // Directory entries would otherwise be created as empty files.
+        if file.is_dir() {
+            continue;
+        }
         // Reject entries with path traversal components or absolute paths.
-        let entry_name = file.name();
-        let safe_name = Path::new(entry_name)
+        let entry_name = file.name().to_string();
+        let safe_name = Path::new(&entry_name)
             .file_name()
-            .ok_or_else(|| anyhow!("Invalid entry name in archive: '{}'", entry_name))?;
+            .ok_or_else(|| anyhow!("Invalid entry name in archive: '{}'", entry_name))?
+            .to_owned();
         let outpath = new_notebook_path.join(safe_name);
-        let mut outfile = File::create(&outpath)?;
-        io::copy(&mut file, &mut outfile)?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)
+            .with_context(|| format!("Archive entry '{entry_name}' is not valid UTF-8 text"))?;
+        // Route through write_note_file so notes are encrypted when enabled.
+        helpers::write_note_file(&outpath, &content)?;
     }
 
     println!("Successfully imported notebook '{notebook_name}' from {file_path:?}");

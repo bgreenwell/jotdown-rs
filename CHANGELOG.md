@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Fixed
+- `jd new` and `jd edit` now decrypt notes to a private temp file for editing and re-encrypt afterward; previously the editor was shown raw ciphertext and saved notes were silently left unencrypted.
+- The encryption identity file is now created readable only by the owner (0600) instead of world-readable.
+- `jd sync` never stages `identity.txt` or `config.toml`, even when the git repository was created by hand without a `.gitignore`.
+- `jd init --git` on a pre-existing repository now adds the missing `.gitignore` entries for sensitive files.
+- Importing a ZIP archive now encrypts notes when encryption is enabled, and no longer creates empty files from directory entries.
+- `jd export` warns that the output is plaintext when the journal is encrypted.
+
 ## [0.2.1] - 2026-06-02
 
 ### Added
