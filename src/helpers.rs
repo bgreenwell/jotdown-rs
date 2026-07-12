@@ -84,8 +84,10 @@ fn handle_legacy_migration(root_dir: &Path) -> Result<()> {
     let notebooks_dir = root_dir.join("notebooks");
 
     if legacy_entries_dir.exists() && !notebooks_dir.exists() {
-        println!("jd has been updated to support notebooks!");
-        println!("Migrating your existing notes to the 'default' notebook...");
+        // Print to stderr so the one-time migration notice can never pollute
+        // machine-readable output like `--format json`.
+        eprintln!("jd has been updated to support notebooks!");
+        eprintln!("Migrating your existing notes to the 'default' notebook...");
 
         fs::create_dir_all(&notebooks_dir)
             .with_context(|| "Failed to create new notebooks directory during migration.")?;
@@ -94,7 +96,7 @@ fn handle_legacy_migration(root_dir: &Path) -> Result<()> {
         fs::rename(&legacy_entries_dir, &default_notebook_path).with_context(|| {
             format!("Failed to move notes from {legacy_entries_dir:?} to {default_notebook_path:?}")
         })?;
-        println!("Migration complete. Your notes are now in the 'default' notebook.");
+        eprintln!("Migration complete. Your notes are now in the 'default' notebook.");
     }
     Ok(())
 }
@@ -331,10 +333,65 @@ pub fn read_note_file(path: &Path) -> Result<String> {
     }
 }
 
+/// Sort key that orders same-second collision files (`…-HHMMSS-1.md`) after
+/// their base file (`…-HHMMSS.md`); plain byte order compares `-` before `.`
+/// and would put the *later* note first.
+pub fn note_sort_key(path: &Path) -> (String, u32) {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    if let Some((base, suffix)) = stem.rsplit_once('-') {
+        if let Ok(n) = suffix.parse::<u32>() {
+            // Only treat it as a collision suffix when the base ends in the
+            // 6-digit time component of jd's generated filenames.
+            if base.len() >= 6 && base[base.len() - 6..].chars().all(|c| c.is_ascii_digit()) {
+                return (base.to_string(), n + 1);
+            }
+        }
+    }
+    (stem.to_string(), 0)
+}
+
+/// Returns the note files (`*.md`) in a notebook directory, sorted by
+/// creation order. Foreign files (`.DS_Store`, editor swap files) and
+/// subdirectories are ignored so they can never break note commands.
+pub fn note_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut files: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("md")
+        })
+        .collect();
+    files.sort_by_key(|path| note_sort_key(path));
+    Ok(files)
+}
+
+/// Parses every note in a notebook directory in creation order, skipping
+/// (with a warning on stderr) any file that cannot be parsed, so one bad
+/// file cannot break a whole command.
+pub fn parse_notes_in_dir(dir: &Path, notebook_name: &str) -> Result<Vec<Note>> {
+    let mut notes = Vec::new();
+    for path in note_files(dir)? {
+        match parse_note_from_file(&path, notebook_name) {
+            Ok(note) => notes.push(note),
+            Err(e) => eprintln!(
+                "Warning: skipping {:?}: {e:#}",
+                path.file_name().unwrap_or_default()
+            ),
+        }
+    }
+    Ok(notes)
+}
+
 /// Parses a file into a `Note` struct, separating frontmatter from content.
 pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
     let filename = path.file_name().unwrap().to_string_lossy().to_string();
-    let id = filename.replace(".md", "");
+    let id = filename
+        .strip_suffix(".md")
+        .unwrap_or(&filename)
+        .to_string();
     let file_content =
         read_note_file(path).with_context(|| format!("Could not read file: {path:?}"))?;
 
@@ -394,8 +451,8 @@ pub fn get_note_path_for_action(
     } else if let Some(prefix) = id_prefix {
         find_unique_note_by_prefix(entries_dir, &prefix)
     } else {
-        // This case should be prevented by clap's `required = true` on the group
-        unreachable!();
+        // Clap's `required = true` on the target group should prevent this.
+        bail!("Provide a note ID prefix or the --last flag.");
     }
 }
 
@@ -475,11 +532,14 @@ pub fn compile_notes(notes: Vec<Note>) -> Result<()> {
 }
 
 pub fn find_unique_note_by_prefix(entries_dir: &Path, prefix: &str) -> Result<PathBuf> {
-    let entries = fs::read_dir(entries_dir)?;
     let mut matches = Vec::new();
-    for entry in entries.filter_map(Result::ok) {
-        if entry.file_name().to_string_lossy().starts_with(prefix) {
-            matches.push(entry.path());
+    for path in note_files(entries_dir)? {
+        if path
+            .file_name()
+            .map(|name| name.to_string_lossy().starts_with(prefix))
+            .unwrap_or(false)
+        {
+            matches.push(path);
         }
     }
     if matches.is_empty() {
@@ -516,7 +576,7 @@ pub fn find_note_by_index_from_end(entries_dir: &Path, index: usize) -> Result<P
     if index == 0 {
         bail!("--last index must be 1 or greater.");
     }
-    let mut entries: Vec<_> = fs::read_dir(entries_dir)?.filter_map(Result::ok).collect();
+    let entries = note_files(entries_dir)?;
     let total_jots = entries.len();
     if total_jots == 0 {
         bail!("No jots exist to act upon.");
@@ -529,10 +589,9 @@ pub fn find_note_by_index_from_end(entries_dir: &Path, index: usize) -> Result<P
             total_jots
         );
     }
-    entries.sort_by_key(|e| e.file_name());
     let target_index = total_jots - index;
     entries
         .get(target_index)
-        .map(|e| e.path())
+        .cloned()
         .with_context(|| "Failed to get entry at calculated index.")
 }

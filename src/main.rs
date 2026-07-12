@@ -95,7 +95,11 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         Commands::Import(args) => commands::command_import(args)?,
         Commands::Clean { all } => commands::command_clean(&entries_dir, all)?,
 
-        Commands::Shell => unreachable!(),
+        // Only reachable when `shell`/`sh` is typed inside the interactive
+        // shell; nested shells are not supported.
+        Commands::Shell => {
+            println!("Already in the jd shell. Type 'exit' or press Ctrl-D to leave.")
+        }
     }
 
     Ok(())

@@ -443,14 +443,16 @@ mod notebooks {
         fs::create_dir_all(&legacy_entries)?;
         fs::write(legacy_entries.join("legacy_note.md"), "old note")?;
 
-        // 2. Run any jd command, which should trigger the migration
+        // 2. Run any jd command, which should trigger the migration. The
+        // one-time notice goes to stderr so it never pollutes machine-
+        // readable stdout output (e.g. `--format json`).
         Command::cargo_bin("jd")?
             .arg("info")
             .arg("--paths")
             .env("JD_DIR", &jd_dir)
             .assert()
             .success()
-            .stdout(predicate::str::contains("Migrating your existing notes"));
+            .stderr(predicate::str::contains("Migrating your existing notes"));
 
         // 3. Verify the new structure
         assert!(
@@ -2310,6 +2312,154 @@ mod corruption_regressions {
             .assert()
             .success()
             .stdout(predicate::str::contains("prop test"));
+        Ok(())
+    }
+}
+
+// Robustness regressions: shell panic, foreign-file resilience, ordering.
+#[cfg(test)]
+mod robustness {
+    use super::*;
+
+    /// Typing `shell` inside the shell must not panic (previously hit
+    /// `unreachable!()` at the top-level command dispatcher).
+    #[test]
+    fn test_nested_shell_command_does_not_panic() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("shell")
+            .env("JD_DIR", &jd_dir)
+            .write_stdin("shell\nexit\n")
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Already in the jd shell"))
+            .stderr(predicate::str::contains("panic").not());
+        Ok(())
+    }
+
+    /// A stray non-Markdown file in a notebook must not break commands that
+    /// scan the whole directory.
+    #[test]
+    fn test_foreign_file_does_not_break_list() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+
+        Command::cargo_bin("jd")?
+            .arg("a real note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        fs::write(entries_dir.join(".DS_Store"), [0xff, 0xfe, 0x00, 0x01])?;
+        fs::create_dir(entries_dir.join("a_subdir"))?;
+
+        Command::cargo_bin("jd")?
+            .arg("list")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("a real note"));
+
+        Command::cargo_bin("jd")?
+            .arg("find")
+            .arg("real")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("a real note"));
+        Ok(())
+    }
+
+    /// A note whose frontmatter fails to parse should be skipped with a
+    /// warning, not abort the whole command (regression for the
+    /// `property set tags` corruption class of bug).
+    #[test]
+    fn test_unparseable_note_is_skipped_with_warning() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+
+        Command::cargo_bin("jd")?
+            .arg("a good note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        fs::write(
+            entries_dir.join("2020-01-01-000000.md"),
+            "---\ntags = \"not-an-array\"\n---\n\nbroken\n",
+        )?;
+
+        Command::cargo_bin("jd")?
+            .arg("list")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("a good note"))
+            .stderr(predicate::str::contains("Warning: skipping"));
+        Ok(())
+    }
+
+    /// Same-second collision suffixes must sort after their base file, so
+    /// `--last` selects the actually-most-recent note.
+    #[test]
+    fn test_last_selects_true_latest_on_same_second_collision() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        fs::create_dir_all(&entries_dir)?;
+
+        fs::write(entries_dir.join("2026-01-01-120000.md"), "first")?;
+        fs::write(
+            entries_dir.join("2026-01-01-120000-1.md"),
+            "second (collision)",
+        )?;
+
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("second (collision)"));
+        Ok(())
+    }
+
+    /// A note ID must only strip a trailing `.md`, not every occurrence.
+    #[test]
+    fn test_id_only_strips_trailing_md_suffix() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        fs::create_dir_all(&entries_dir)?;
+        fs::write(entries_dir.join("my.md-ideas.md"), "content")?;
+
+        Command::cargo_bin("jd")?
+            .args(["show", "my.md-ideas"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("content"));
+        Ok(())
+    }
+    /// `list --count N` must keep the N *newest* notes, not the N oldest —
+    /// truncating an already-ascending-sorted list without reversing first
+    /// silently returned the wrong end of the list.
+    #[test]
+    fn test_list_count_keeps_newest_notes() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        fs::create_dir_all(&entries_dir)?;
+
+        fs::write(entries_dir.join("2026-01-01-090000.md"), "oldest")?;
+        fs::write(entries_dir.join("2026-01-02-090000.md"), "middle")?;
+        fs::write(entries_dir.join("2026-01-03-090000.md"), "newest")?;
+
+        Command::cargo_bin("jd")?
+            .args(["list", "2"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("newest"))
+            .stdout(predicate::str::contains("middle"))
+            .stdout(predicate::str::contains("oldest").not());
         Ok(())
     }
 }

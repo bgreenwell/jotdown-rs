@@ -14,6 +14,12 @@ All notable changes to this project are documented in this file. The format is b
 - `jd rename`, `jd move`, JSON imports, the `--notebook` flag, and the `JD_ACTIVE_NOTEBOOK` environment variable now reject names with path separators or traversal components, closing several ways to write files outside the notebooks directory.
 - `jd prepend` no longer writes the new text onto the closing frontmatter delimiter line, which corrupted the file for other Markdown tools.
 - `jd property set`/`delete` now reject the reserved `tags` and `pinned` keys; setting them previously made the note (and `jd list`) unparseable.
+- Typing `shell`/`sh` inside the interactive shell no longer panics.
+- `jd list`, `find`, `tags`, `select`, `info --stats`, and `--last` now ignore non-`.md` files and subdirectories instead of aborting on the first one encountered; a note that fails to parse is skipped with a warning rather than breaking the whole command.
+- Same-second collision files (`…-1.md`) now sort after their base note, so `--last` and `list` correctly identify the most recent jot.
+- `jd list --count N` now keeps the N *newest* notes instead of the N oldest.
+- A note ID now only strips a single trailing `.md`, so filenames containing `.md` elsewhere (e.g. `my.md-ideas.md`) get the correct ID.
+- The one-time legacy-notebook migration notice now prints to stderr instead of stdout, so it can't corrupt `--format json` output.
 
 ## [0.2.1] - 2026-06-02
 
