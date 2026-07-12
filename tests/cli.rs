@@ -2214,3 +2214,102 @@ mod path_validation {
         Ok(())
     }
 }
+
+// Regression tests for data-corruption bugs.
+#[cfg(test)]
+mod corruption_regressions {
+    use super::*;
+
+    /// Prepending to a note WITH frontmatter must not place text on the
+    /// closing `---` delimiter line (regression: `---new` corruption).
+    #[test]
+    fn test_prepend_preserves_frontmatter_block() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("hello body")
+            .args(["--tags", "rust"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["prepend", "--last=1", "NEWLINE"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let note_path = fs::read_dir(jd_dir.join("notebooks").join("default"))?
+            .next()
+            .unwrap()?
+            .path();
+        let raw = fs::read_to_string(&note_path)?;
+
+        // The closing delimiter must still sit alone on its own line.
+        assert!(
+            raw.contains("\n---\n"),
+            "closing frontmatter delimiter was corrupted:\n{raw}"
+        );
+        assert!(
+            !raw.contains("---NEWLINE"),
+            "text landed on the delimiter:\n{raw}"
+        );
+
+        // The prepended text must be the first body line.
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::starts_with("NEWLINE\nhello body"));
+
+        // And the note must still parse with its tags intact.
+        Command::cargo_bin("jd")?
+            .args(["tags", "rust"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("NEWLINE"));
+        Ok(())
+    }
+
+    /// `property set`/`delete` must refuse the struct-owned frontmatter keys;
+    /// previously `property set tags x` made the note (and `jd list`)
+    /// unparseable.
+    #[test]
+    fn test_property_set_rejects_reserved_keys() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("prop test")
+            .args(["--tags", "rust"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        for key in ["tags", "pinned"] {
+            Command::cargo_bin("jd")?
+                .args(["property", "set", "--last=1", key, "oops"])
+                .env("JD_DIR", &jd_dir)
+                .assert()
+                .failure()
+                .stderr(predicate::str::contains("managed by jd"));
+
+            Command::cargo_bin("jd")?
+                .args(["property", "delete", "--last=1", key])
+                .env("JD_DIR", &jd_dir)
+                .assert()
+                .failure()
+                .stderr(predicate::str::contains("managed by jd"));
+        }
+
+        // The note must still list fine with its tags intact.
+        Command::cargo_bin("jd")?
+            .arg("list")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("prop test"));
+        Ok(())
+    }
+}

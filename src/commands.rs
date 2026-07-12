@@ -210,6 +210,19 @@ fn command_notebook_status() -> Result<()> {
     Ok(())
 }
 
+/// Frontmatter keys owned by `Frontmatter` struct fields. Writing them
+/// through the free-form `fields` table would produce a duplicate or
+/// wrongly-typed key that makes the note unparseable.
+fn check_reserved_property(name: &str) -> Result<()> {
+    if name == "tags" || name == "pinned" {
+        bail!(
+            "'{}' is managed by jd and cannot be modified as a property. Use `jd tag` or `jd pin`/`jd unpin` instead.",
+            name
+        );
+    }
+    Ok(())
+}
+
 pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()> {
     match action {
         PropertyAction::Set {
@@ -218,6 +231,7 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             name,
             value,
         } => {
+            check_reserved_property(&name)?;
             let note_path = get_note_path_for_action(entries_dir, id, last)?;
             let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
             let mut note = parse_note_from_file(&note_path, &notebook_name)?;
@@ -262,6 +276,7 @@ pub fn command_property(entries_dir: &Path, action: PropertyAction) -> Result<()
             }
         }
         PropertyAction::Delete { id, last, name } => {
+            check_reserved_property(&name)?;
             let note_path = get_note_path_for_action(entries_dir, id, last)?;
             let notebook_name = entries_dir.file_name().unwrap().to_string_lossy();
             let mut note = parse_note_from_file(&note_path, &notebook_name)?;
@@ -322,26 +337,24 @@ pub fn command_prepend(
         content.to_string()
     };
 
-    // Read the raw file and insert the new content after the frontmatter block
-    // (or at the very top if there is no frontmatter), so plain-text notes are
-    // not silently wrapped in a YAML header.
+    // Read the raw file and insert the new content directly above the first
+    // body line (past the frontmatter block, if any), so plain-text notes are
+    // not silently wrapped in a frontmatter header.
     let mut raw = helpers::read_note_file(&note_path)?;
-    let insert_at = if raw.starts_with("---") {
-        raw.get(3..)
-            .and_then(|s| s.find("\n---"))
-            .map(|i| 3 + i + 4) // skip past the closing ---
-            .unwrap_or(0)
-    } else {
-        0
+    let insert_at = match raw.strip_prefix("---").and_then(|s| s.find("\n---")) {
+        Some(rel) => {
+            // Past the closing `---`, its trailing newline, and any blank
+            // lines, so the new text lands at the start of the body — not
+            // on the delimiter line itself.
+            let mut idx = 3 + rel + 4;
+            while raw[idx..].starts_with('\n') {
+                idx += 1;
+            }
+            idx
+        }
+        None => 0,
     };
-
-    // Ensure there's a blank line between the frontmatter and the new content.
-    let separator = if insert_at > 0 && !raw[insert_at..].starts_with("\n\n") {
-        "\n\n"
-    } else {
-        ""
-    };
-    raw.insert_str(insert_at, &format!("{}{}", separator, prefix));
+    raw.insert_str(insert_at, &prefix);
 
     helpers::write_note_file(&note_path, &raw)?;
     println!("Successfully prepended to jot '{}'.", note.id);
