@@ -19,72 +19,68 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
             pinned,
             tasks,
             format,
-        } => commands::command_list(&entries_dir, count, pinned, tasks, &format)?,
+        } => commands::command_list(&entries_dir, count, pinned, tasks, format)?,
         Commands::Find {
             query,
             all,
             format,
             context,
-        } => commands::command_find(&entries_dir, &query, all, &format, context)?,
+        } => commands::command_find(&entries_dir, &query, all, format, context)?,
         Commands::Tags { tags, format } => {
-            commands::command_tags_filter(&entries_dir, &tags, &format)?
+            commands::command_tags_filter(&entries_dir, &tags, format)?
         }
         #[cfg(not(windows))]
         Commands::Select => commands::command_select(&entries_dir)?,
         Commands::Today { compile, format } => {
-            commands::command_today(&entries_dir, compile, &format)?
+            commands::command_today(&entries_dir, compile, format)?
         }
         Commands::Yesterday { compile, format } => {
-            commands::command_yesterday(&entries_dir, compile, &format)?
+            commands::command_yesterday(&entries_dir, compile, format)?
         }
         Commands::Week { compile, format } => {
-            commands::command_by_week(&entries_dir, compile, &format)?
+            commands::command_by_week(&entries_dir, compile, format)?
         }
         Commands::On {
             date_spec,
             compile,
             format,
-        } => commands::command_on(&entries_dir, &date_spec, compile, &format)?,
-        Commands::Edit { id_prefix, last } => {
-            let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
+        } => commands::command_on(&entries_dir, &date_spec, compile, format)?,
+        Commands::Edit { target } => {
+            let note_path =
+                helpers::get_note_path_for_action(&entries_dir, target.id_prefix, target.last)?;
             commands::command_edit(note_path)?;
         }
-        Commands::Show {
-            id_prefix,
-            last,
-            raw,
-        } => {
-            let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
+        Commands::Show { target, raw } => {
+            let note_path =
+                helpers::get_note_path_for_action(&entries_dir, target.id_prefix, target.last)?;
             commands::command_show(note_path, raw)?;
         }
-        Commands::Delete {
-            id_prefix,
-            last,
-            force,
-        } => {
-            let note_path = helpers::get_note_path_for_action(&entries_dir, id_prefix, last)?;
+        Commands::Delete { target, force } => {
+            let note_path =
+                helpers::get_note_path_for_action(&entries_dir, target.id_prefix, target.last)?;
             commands::command_delete(note_path, force)?;
         }
-        Commands::Pin { id_prefix, last } => commands::command_pin(&entries_dir, id_prefix, last)?,
-        Commands::Unpin { id_prefix, last } => {
-            commands::command_unpin(&entries_dir, id_prefix, last)?
+        Commands::Pin { target } => {
+            commands::command_pin(&entries_dir, target.id_prefix, target.last)?
+        }
+        Commands::Unpin { target } => {
+            commands::command_unpin(&entries_dir, target.id_prefix, target.last)?
         }
         Commands::Info(args) => commands::command_info(&entries_dir, args)?,
         Commands::Tag(args) => commands::command_tag(&entries_dir, args)?,
         Commands::Property { action } => commands::command_property(&entries_dir, action)?,
-        Commands::Append { id, last, content } => {
-            commands::command_append(&entries_dir, id, last, &content)?
+        Commands::Append { target, content } => {
+            commands::command_append(&entries_dir, target.id, target.last, &content)?
         }
-        Commands::Prepend { id, last, content } => {
-            commands::command_prepend(&entries_dir, id, last, &content)?
+        Commands::Prepend { target, content } => {
+            commands::command_prepend(&entries_dir, target.id, target.last, &content)?
         }
         Commands::Move {
-            id,
-            last,
+            target,
             destination,
-        } => commands::command_move(&entries_dir, id, last, &destination)?,
-        Commands::Rename { id, last, new_name } => {
-            commands::command_rename(&entries_dir, id, last, &new_name)?
+        } => commands::command_move(&entries_dir, target.id, target.last, &destination)?,
+        Commands::Rename { target, new_name } => {
+            commands::command_rename(&entries_dir, target.id, target.last, &new_name)?
         }
         Commands::Daily { message } => commands::command_daily(&entries_dir, &message)?,
         Commands::Notebook(args) => commands::command_notebook(args)?,
@@ -142,25 +138,4 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::helpers::get_ordinal_suffix;
-
-    #[test]
-    fn test_ordinal_suffix() {
-        assert_eq!(get_ordinal_suffix(1), "st");
-        assert_eq!(get_ordinal_suffix(2), "nd");
-        assert_eq!(get_ordinal_suffix(3), "rd");
-        assert_eq!(get_ordinal_suffix(4), "th");
-        assert_eq!(get_ordinal_suffix(10), "th");
-        assert_eq!(get_ordinal_suffix(11), "th");
-        assert_eq!(get_ordinal_suffix(12), "th");
-        assert_eq!(get_ordinal_suffix(13), "th");
-        assert_eq!(get_ordinal_suffix(21), "st");
-        assert_eq!(get_ordinal_suffix(22), "nd");
-        assert_eq!(get_ordinal_suffix(23), "rd");
-        assert_eq!(get_ordinal_suffix(101), "st");
-    }
 }

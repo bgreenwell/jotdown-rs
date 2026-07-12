@@ -20,7 +20,6 @@ age = "0.10"
 anyhow = "1.0"
 chrono = "0.4"
 clap = { version = "4.5", features = ["derive"] }
-crossbeam-channel = "0.5"
 dirs = "5.0.1"
 rand = "0.8"
 rustyline = "14.0"
@@ -34,8 +33,9 @@ uuid = { version = "1.8", features = ["v4", "serde"] }
 zip = { version = "2.1", features = ["zstd"] }
 syntect = "5.3.0"
 
-# Non-Windows dependencies
+# Non-Windows dependencies (the fuzzy-finder `select` command and its skim/crossbeam-channel backend)
 [target.'cfg(not(windows))'.dependencies]
+crossbeam-channel = "0.5"
 skim = "0.10.4"
 
 [dev-dependencies]

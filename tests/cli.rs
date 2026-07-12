@@ -2463,3 +2463,102 @@ mod robustness {
         Ok(())
     }
 }
+
+// Regression tests for the WI5 refactor: --format ValueEnum and the
+// flattened id/last target structs must preserve exact CLI behavior.
+#[cfg(test)]
+mod refactor_regressions {
+    use super::*;
+
+    /// An unrecognized --format value must be a hard clap error, not a
+    /// silent fallback to human-readable output.
+    #[test]
+    fn test_invalid_format_is_a_hard_error() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("a note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["list", "--format", "yaml"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("invalid value"));
+        Ok(())
+    }
+
+    /// The flattened target structs must still accept both an ID prefix
+    /// and `--last` across the three distinct CLI shapes (positional,
+    /// --id, --id-prefix).
+    #[test]
+    fn test_target_flags_work_across_all_shapes() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("target test")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // Positional shape: pin/edit/show/delete.
+        Command::cargo_bin("jd")?
+            .args(["pin", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // --id/-i shape: append/prepend/move/rename/property.
+        Command::cargo_bin("jd")?
+            .args(["append", "--last", "more text"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+        Command::cargo_bin("jd")?
+            .args(["property", "set", "--last", "key", "value"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // --id-prefix/-p shape: tag add/remove/set.
+        Command::cargo_bin("jd")?
+            .args(["tag", "add", "--last", "urgent"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // --raw strips frontmatter, so check the body and the metadata
+        // (pin/tag state) through their own commands.
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("more text"));
+
+        Command::cargo_bin("jd")?
+            .args(["list", "--pinned"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("target test"));
+
+        Command::cargo_bin("jd")?
+            .args(["tags", "urgent"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("target test"));
+
+        Command::cargo_bin("jd")?
+            .args(["property", "get", "--last", "key"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("value"));
+        Ok(())
+    }
+}

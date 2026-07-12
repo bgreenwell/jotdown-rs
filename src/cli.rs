@@ -30,6 +30,56 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
         .ok_or_else(|| format!("invalid key-value pair: {s}"))
 }
 
+/// Output format for commands that list or query notes. A `ValueEnum`
+/// instead of a free `String` so an unrecognized value (e.g. a typo like
+/// `--format yaml`) is a hard clap error instead of silently falling back
+/// to human-readable output.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+#[value(rename_all = "lower")]
+pub enum OutputFormat {
+    Human,
+    Json,
+    Csv,
+}
+
+/// Targets a note by a positional ID prefix or the `--last` flag.
+/// Used by commands where the ID prefix reads naturally as the first
+/// argument (`pin`, `unpin`, `edit`, `show`, `delete`).
+#[derive(Args, Debug)]
+pub struct PositionalTarget {
+    /// The prefix of the jot ID. Must be unique.
+    #[arg(group = "target", required = true)]
+    pub id_prefix: Option<String>,
+    /// Target the Nth most recent jot (e.g., --last=1 or just --last).
+    #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
+    pub last: Option<usize>,
+}
+
+/// Targets a note via `--id`/`-i` or the `--last` flag. Used by commands
+/// that take another required positional argument of their own
+/// (`append`, `prepend`, `move`, `rename`, `property`).
+#[derive(Args, Debug)]
+pub struct IdFlagTarget {
+    /// The prefix of the jot ID to target.
+    #[arg(long, short, group = "target", required = true)]
+    pub id: Option<String>,
+    /// Target the Nth most recent jot.
+    #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
+    pub last: Option<usize>,
+}
+
+/// Targets a note via `--id-prefix`/`-p` or the `--last` flag. Used by
+/// `jd tag` subcommands.
+#[derive(Args, Debug)]
+pub struct IdPrefixFlagTarget {
+    /// The ID prefix of the note to target.
+    #[arg(long, short = 'p', group = "target", required = true)]
+    pub id_prefix: Option<String>,
+    /// Target the Nth most recent note.
+    #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
+    pub last: Option<usize>,
+}
+
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Create a new jot using an editor, optionally with a template.
@@ -53,26 +103,18 @@ pub enum Commands {
         #[arg(long)] // Or short('t') if you prefer
         tasks: bool,
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// Pin a jot.
     Pin {
-        /// The prefix of the jot ID to pin. Must be unique.
-        #[arg(group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Pin the Nth most recent jot (e.g., --last=1 or just --last).
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: PositionalTarget,
     },
     /// Unpin a jot.
     Unpin {
-        /// The prefix of the jot ID to unpin. Must be unique.
-        #[arg(group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Unpin the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: PositionalTarget,
     },
     /// Create a new jot formatted as a task.
     #[command(aliases = ["t", "todo"])] // Optional aliases
@@ -92,8 +134,8 @@ pub enum Commands {
         all: bool,
 
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
 
         /// Show surrounding context for matches.
         #[arg(long, short)]
@@ -110,53 +152,37 @@ pub enum Commands {
         tags: Vec<String>,
 
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// Append text to an existing jot.
     Append {
-        /// The prefix of the jot ID to append to.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Append to the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The text to append.
         #[arg(required = true)]
         content: String,
     },
     /// Prepend text to an existing jot (below the frontmatter).
     Prepend {
-        /// The prefix of the jot ID to prepend to.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Prepend to the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The text to prepend.
         #[arg(required = true)]
         content: String,
     },
     /// Move a jot to another notebook.
     Move {
-        /// The prefix of the jot ID to move.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Move the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The destination notebook name.
         #[arg(required = true)]
         destination: String,
     },
     /// Rename a jot (updates the filename).
     Rename {
-        /// The prefix of the jot ID to rename.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Rename the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The new name for the jot (used for the filename).
         #[arg(required = true)]
         new_name: String,
@@ -174,24 +200,24 @@ pub enum Commands {
         #[arg(long, short)]
         compile: bool,
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// List jots from yesterday.
     Yesterday {
         #[arg(long, short)]
         compile: bool,
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// List jots from this week.
     Week {
         #[arg(long, short)]
         compile: bool,
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// List jots from a specific date or date range.
     On {
@@ -201,39 +227,27 @@ pub enum Commands {
         #[arg(long, short)]
         compile: bool,
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// Open an existing jot in the default editor.
     Edit {
-        /// The prefix of the jot ID to edit. Must be unique.
-        #[arg(group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Edit the Nth most recent jot (e.g., --last=1 or just --last).
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: PositionalTarget,
     },
     /// Display the full content of a jot in the terminal.
     Show {
-        /// The prefix of the jot ID to show. Must be unique.
-        #[arg(group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Show the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
-        /// Print only the note body, stripping the YAML frontmatter.
+        #[command(flatten)]
+        target: PositionalTarget,
+        /// Print only the note body, stripping the frontmatter.
         #[arg(long, short)]
         raw: bool,
     },
     /// Delete a jot with confirmation.
     #[command(alias = "rm")]
     Delete {
-        /// The prefix of the jot ID to delete. Must be unique.
-        #[arg(group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Delete the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: PositionalTarget,
         /// Force deletion without a confirmation prompt.
         #[arg(long, short)]
         force: bool,
@@ -339,12 +353,8 @@ pub struct TagArgs {
 pub enum PropertyAction {
     /// Set a property value.
     Set {
-        /// The prefix of the jot ID to modify.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Modify the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The name of the property.
         name: String,
         /// The value to set.
@@ -352,26 +362,18 @@ pub enum PropertyAction {
     },
     /// Get a property value.
     Get {
-        /// The prefix of the jot ID to query.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Query the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The name of the property.
         name: String,
         /// The output format (human, json, csv).
-        #[arg(long, short, default_value = "human")]
-        format: String,
+        #[arg(long, short, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
     },
     /// Delete a property.
     Delete {
-        /// The prefix of the jot ID to modify.
-        #[arg(long, short, group = "target", required = true)]
-        id: Option<String>,
-        /// Modify the Nth most recent jot.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdFlagTarget,
         /// The name of the property.
         name: String,
     },
@@ -381,12 +383,8 @@ pub enum PropertyAction {
 pub enum TagAction {
     /// Add one or more tags to a jot.
     Add {
-        /// The ID prefix of the note to tag.
-        #[arg(long, short = 'p', group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Target the Nth most recent note.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdPrefixFlagTarget,
         /// The tags to add.
         #[arg(required = true, value_delimiter = ',')]
         tags: Vec<String>,
@@ -394,24 +392,16 @@ pub enum TagAction {
     /// Remove one or more tags from a jot.
     #[command(alias = "rm")]
     Remove {
-        /// The ID prefix of the note to modify.
-        #[arg(long, short = 'p', group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Target the Nth most recent note.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdPrefixFlagTarget,
         /// The tags to remove.
         #[arg(required = true, value_delimiter = ',')]
         tags: Vec<String>,
     },
     /// Overwrite all existing tags on a jot.
     Set {
-        /// The ID prefix of the note to modify.
-        #[arg(long, short = 'p', group = "target", required = true)]
-        id_prefix: Option<String>,
-        /// Target the Nth most recent note.
-        #[arg(long, short, group = "target", num_args(0..=1), default_missing_value = "1", require_equals = true)]
-        last: Option<usize>,
+        #[command(flatten)]
+        target: IdPrefixFlagTarget,
         /// The new set of tags.
         #[arg(required = true, value_delimiter = ',')]
         tags: Vec<String>,

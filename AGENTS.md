@@ -17,7 +17,7 @@ A minimalist command-line jotting utility written in Rust, designed for fast cap
 ### Architecture
 - `src/main.rs`: Entry point and top-level command orchestration.
 - `src/cli.rs`: CLI structure definition and subcommand parsing.
-- `src/commands.rs`: Implementation logic for all subcommands (the "business logic").
+- `src/commands/`: Implementation logic for all subcommands (the "business logic"), split into one module per feature area (`capture`, `query`, `notebook`, `git`, `export_import`, `shell`, etc.) and re-exported flat from `commands/mod.rs`.
 - `src/helpers.rs`: Shared utilities for path management, file I/O, encryption, and note parsing.
 - `tests/cli.rs`: Comprehensive integration tests covering the entire CLI surface.
 

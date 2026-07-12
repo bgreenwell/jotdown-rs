@@ -21,6 +21,10 @@ All notable changes to this project are documented in this file. The format is b
 - A note ID now only strips a single trailing `.md`, so filenames containing `.md` elsewhere (e.g. `my.md-ideas.md`) get the correct ID.
 - The one-time legacy-notebook migration notice now prints to stderr instead of stdout, so it can't corrupt `--format json` output.
 
+### Changed
+- `--format` is now a validated enum (`human`/`json`/`csv`) instead of a free string; an unrecognized value is now a clap error instead of silently falling back to human-readable output.
+- Internal refactor: the repeated ID/`--last` clap argument blocks are now shared structs (`PositionalTarget`, `IdFlagTarget`, `IdPrefixFlagTarget`); the note-save-to-disk pattern is now `Note::save()`; the four hand-rolled confirmation prompts share a `confirm()` helper; `commands.rs` is now a `commands/` module split by feature area. No user-facing behavior change.
+
 ## [0.2.1] - 2026-06-02
 
 ### Added

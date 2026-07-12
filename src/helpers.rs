@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use age::{
@@ -10,6 +10,8 @@ use age::{
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use which::which;
+
+use crate::cli::OutputFormat;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
@@ -48,6 +50,17 @@ pub struct Note {
     pub frontmatter: Frontmatter,
     pub content: String,
     pub tasks: Vec<Task>,
+}
+
+impl Note {
+    /// Serializes the frontmatter and content back to this note's path,
+    /// encrypting on write if encryption is enabled. Used after any
+    /// in-memory edit to `frontmatter` or `content`.
+    pub fn save(&self) -> Result<()> {
+        let frontmatter_str = toml::to_string(&self.frontmatter)?;
+        let content = format!("---\n{frontmatter_str}---\n\n{}", self.content);
+        write_note_file(&self.path, &content)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -397,7 +410,7 @@ pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
 
     let (frontmatter, content_str) = if let Some(after_open) = file_content.strip_prefix("---") {
         // Find the closing `---` only at the start of a line, so `---` inside
-        // a YAML value (e.g. `title: "foo --- bar"`) does not terminate early.
+        // a TOML value (e.g. `title = "foo --- bar"`) does not terminate early.
         if let Some(rel) = after_open.find("\n---") {
             let frontmatter_str = &after_open[..rel];
             let content_part = after_open[(rel + 4)..].trim().to_string();
@@ -473,13 +486,13 @@ fn csv_quote(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
 }
 
-pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()> {
+pub fn display_formatted_note_list(notes: Vec<Note>, format: OutputFormat) -> Result<()> {
     match format {
-        "json" => {
+        OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&notes)?;
             println!("{}", json);
         }
-        "csv" => {
+        OutputFormat::Csv => {
             println!("id,notebook,tags,content_snippet");
             for note in notes {
                 let tags = note.frontmatter.tags.join("|");
@@ -498,7 +511,7 @@ pub fn display_formatted_note_list(notes: Vec<Note>, format: &str) -> Result<()>
                 );
             }
         }
-        _ => {
+        OutputFormat::Human => {
             display_note_list(notes);
         }
     }
@@ -559,6 +572,22 @@ pub fn find_unique_note_by_prefix(entries_dir: &Path, prefix: &str) -> Result<Pa
     }
 }
 
+/// Returns a notebook directory's name, used as the display "notebook"
+/// field on its notes.
+pub fn notebook_name(dir: &Path) -> std::borrow::Cow<'_, str> {
+    dir.file_name().unwrap_or_default().to_string_lossy()
+}
+
+/// Prompts the user with `[y/N]` and returns whether they answered `y`
+/// (case-insensitive). Any other input, including empty input, is "no".
+pub fn confirm(prompt: &str) -> Result<bool> {
+    print!("{prompt} [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    Ok(answer.trim().eq_ignore_ascii_case("y"))
+}
+
 pub fn get_ordinal_suffix(n: usize) -> &'static str {
     if (11..=13).contains(&(n % 100)) {
         "th"
@@ -594,4 +623,25 @@ pub fn find_note_by_index_from_end(entries_dir: &Path, index: usize) -> Result<P
         .get(target_index)
         .cloned()
         .with_context(|| "Failed to get entry at calculated index.")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_ordinal_suffix;
+
+    #[test]
+    fn test_ordinal_suffix() {
+        assert_eq!(get_ordinal_suffix(1), "st");
+        assert_eq!(get_ordinal_suffix(2), "nd");
+        assert_eq!(get_ordinal_suffix(3), "rd");
+        assert_eq!(get_ordinal_suffix(4), "th");
+        assert_eq!(get_ordinal_suffix(10), "th");
+        assert_eq!(get_ordinal_suffix(11), "th");
+        assert_eq!(get_ordinal_suffix(12), "th");
+        assert_eq!(get_ordinal_suffix(13), "th");
+        assert_eq!(get_ordinal_suffix(21), "st");
+        assert_eq!(get_ordinal_suffix(22), "nd");
+        assert_eq!(get_ordinal_suffix(23), "rd");
+        assert_eq!(get_ordinal_suffix(101), "st");
+    }
 }
