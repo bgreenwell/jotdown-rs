@@ -2308,11 +2308,11 @@ mod corruption_regressions {
 
         // The closing delimiter must still sit alone on its own line.
         assert!(
-            raw.contains("\n---\n"),
+            raw.contains("\n+++\n"),
             "closing frontmatter delimiter was corrupted:\n{raw}"
         );
         assert!(
-            !raw.contains("---NEWLINE"),
+            !raw.contains("+++NEWLINE"),
             "text landed on the delimiter:\n{raw}"
         );
 
@@ -2713,6 +2713,105 @@ mod show_output_regressions {
             "piped `show` output must not contain ANSI escapes:\n{stdout:?}"
         );
         assert!(stdout.contains("a plain note"));
+        Ok(())
+    }
+}
+
+// Regression tests for the WI7 frontmatter delimiter change: new notes use
+// `+++` (the Hugo/TOML convention, unambiguous to external tools), but notes
+// written with the legacy `---` delimiter must keep working indefinitely.
+#[cfg(test)]
+mod frontmatter_fence_regressions {
+    use super::*;
+
+    #[test]
+    fn test_new_notes_use_plus_fence() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("a new note")
+            .args(["--tags", "rust"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let note_path = fs::read_dir(jd_dir.join("notebooks").join("default"))?
+            .next()
+            .unwrap()?
+            .path();
+        let raw = fs::read_to_string(&note_path)?;
+        assert!(
+            raw.starts_with("+++\n"),
+            "new notes must open with the +++ fence:\n{raw}"
+        );
+        assert!(
+            !raw.starts_with("---"),
+            "new notes must not use ---:\n{raw}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_legacy_dash_fence_notes_remain_readable() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        fs::create_dir_all(&entries_dir)?;
+
+        // Hand-write a note in the pre-migration --- format, as if it had
+        // been created by an older jd version.
+        fs::write(
+            entries_dir.join("2025-01-01-090000.md"),
+            "---\ntags = [\"legacy\"]\npinned = true\n---\n\nold-format body\n",
+        )?;
+
+        Command::cargo_bin("jd")?
+            .arg("list")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("old-format body"));
+
+        Command::cargo_bin("jd")?
+            .args(["tags", "legacy"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("old-format body"));
+
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("old-format body"))
+            .stdout(predicate::str::contains("tags =").not());
+        Ok(())
+    }
+
+    #[test]
+    fn test_legacy_dash_fence_note_migrates_to_plus_fence_on_write() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        fs::create_dir_all(&entries_dir)?;
+
+        fs::write(
+            entries_dir.join("2025-01-01-090000.md"),
+            "---\ntags = [\"legacy\"]\n---\n\nold-format body\n",
+        )?;
+
+        Command::cargo_bin("jd")?
+            .args(["tag", "add", "--last", "migrated"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let raw = fs::read_to_string(entries_dir.join("2025-01-01-090000.md"))?;
+        assert!(
+            raw.starts_with("+++\n"),
+            "rewriting a legacy note must migrate it to the +++ fence:\n{raw}"
+        );
+        assert!(raw.contains("migrated"));
+        assert!(raw.contains("old-format body"));
         Ok(())
     }
 }

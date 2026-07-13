@@ -42,6 +42,44 @@ pub struct Frontmatter {
     pub fields: toml::Table,
 }
 
+/// The frontmatter fence jd writes for new and rewritten notes. `+++` is the
+/// Hugo/TOML-frontmatter convention: `---` universally signals YAML to
+/// external tools (Obsidian, Jekyll, pandoc), which would otherwise try —
+/// and fail — to parse jd's TOML frontmatter as YAML.
+pub const FRONTMATTER_FENCE: &str = "+++";
+/// The delimiter used by notes written before this change. Still recognized
+/// on read so existing notes keep working; never written going forward —
+/// any note jd rewrites (tag, pin, property, rename, prepend, ...)
+/// transparently migrates to `+++`.
+const LEGACY_FRONTMATTER_FENCE: &str = "---";
+
+/// If `content` opens with a recognized frontmatter fence, returns
+/// `(frontmatter_str, byte offset where the body begins)`. The offset skips
+/// the closing fence, its newline, and any following blank lines. Returns
+/// `None` if there's no frontmatter block (or no matching closing fence).
+fn split_frontmatter(content: &str) -> Option<(&str, usize)> {
+    for fence in [FRONTMATTER_FENCE, LEGACY_FRONTMATTER_FENCE] {
+        if let Some(after_open) = content.strip_prefix(fence) {
+            if let Some(rel) = after_open.find(&format!("\n{fence}")) {
+                let frontmatter_str = &after_open[..rel];
+                let mut body_start = fence.len() + rel + fence.len() + 1;
+                while content[body_start..].starts_with('\n') {
+                    body_start += 1;
+                }
+                return Some((frontmatter_str, body_start));
+            }
+        }
+    }
+    None
+}
+
+/// Byte offset in `content` where the body begins, past a recognized
+/// frontmatter fence (`+++`, or the legacy `---`) — or `None` if `content`
+/// has no frontmatter block at all.
+pub fn frontmatter_body_offset(content: &str) -> Option<usize> {
+    split_frontmatter(content).map(|(_, offset)| offset)
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Note {
     pub id: String,
@@ -58,7 +96,10 @@ impl Note {
     /// in-memory edit to `frontmatter` or `content`.
     pub fn save(&self) -> Result<()> {
         let frontmatter_str = toml::to_string(&self.frontmatter)?;
-        let content = format!("---\n{frontmatter_str}---\n\n{}", self.content);
+        let content = format!(
+            "{FRONTMATTER_FENCE}\n{frontmatter_str}{FRONTMATTER_FENCE}\n\n{}",
+            self.content
+        );
         write_note_file(&self.path, &content)
     }
 }
@@ -477,21 +518,14 @@ pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
     let file_content =
         read_note_file(path).with_context(|| format!("Could not read file: {path:?}"))?;
 
-    let (frontmatter, content_str) = if let Some(after_open) = file_content.strip_prefix("---") {
-        // Find the closing `---` only at the start of a line, so `---` inside
-        // a TOML value (e.g. `title = "foo --- bar"`) does not terminate early.
-        if let Some(rel) = after_open.find("\n---") {
-            let frontmatter_str = &after_open[..rel];
-            let content_part = after_open[(rel + 4)..].trim().to_string();
+    let (frontmatter, content_str) =
+        if let Some((frontmatter_str, body_start)) = split_frontmatter(&file_content) {
             let fm: Frontmatter = toml::from_str(frontmatter_str)
                 .with_context(|| format!("Failed to parse TOML frontmatter in {path:?}"))?;
-            (fm, content_part)
+            (fm, file_content[body_start..].trim().to_string())
         } else {
             (Frontmatter::default(), file_content.clone())
-        }
-    } else {
-        (Frontmatter::default(), file_content.clone())
-    };
+        };
 
     let mut tasks = Vec::new();
     for line in content_str.lines() {

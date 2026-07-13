@@ -135,9 +135,9 @@ You can use the following variables in any template file:
 **Example `bug.md` template:**
 
 ```markdown
----
++++
 tags = ["bug", "{{project_dir}}"]
----
++++
 
 # Bug Report: {{uuid}}
 
@@ -168,9 +168,9 @@ You can also define your own variables from the command line using the `-v` or `
 **Example `dev-journal.md` template:**
 
 ```markdown
----
++++
 tags = ["journal", "{{project_dir}}", "{{feature_name}}"]
----
++++
 # Dev Journal: {{uuid}}
 
 - **Ticket**: [{{ticket_id}}](https://jira.example.com/browse/{{ticket_id}})

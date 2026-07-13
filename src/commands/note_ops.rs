@@ -52,19 +52,7 @@ pub fn command_prepend(
     // body line (past the frontmatter block, if any), so plain-text notes are
     // not silently wrapped in a frontmatter header.
     let mut raw = helpers::read_note_file(&note_path)?;
-    let insert_at = match raw.strip_prefix("---").and_then(|s| s.find("\n---")) {
-        Some(rel) => {
-            // Past the closing `---`, its trailing newline, and any blank
-            // lines, so the new text lands at the start of the body — not
-            // on the delimiter line itself.
-            let mut idx = 3 + rel + 4;
-            while raw[idx..].starts_with('\n') {
-                idx += 1;
-            }
-            idx
-        }
-        None => 0,
-    };
+    let insert_at = helpers::frontmatter_body_offset(&raw).unwrap_or(0);
     raw.insert_str(insert_at, &prefix);
 
     helpers::write_note_file(&note_path, &raw)?;
@@ -166,8 +154,10 @@ pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
     } else {
         // Create new
         let content = format!(
-            "---\ntitle = \"Daily Note - {}\"\n---\n\n{}\n",
-            today, message
+            "{fence}\ntitle = \"Daily Note - {}\"\n{fence}\n\n{}\n",
+            today,
+            message,
+            fence = helpers::FRONTMATTER_FENCE
         );
         helpers::write_note_file(&note_path, &content)?;
         println!("Created daily note: {}", filename);

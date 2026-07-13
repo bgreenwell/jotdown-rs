@@ -47,15 +47,16 @@ A minimalist command-line jotting utility written in Rust, designed for fast cap
 - **Validation**: Use `assert_cmd` and `predicates` for verifying CLI output and side effects.
 
 ### Note format
-Notes consist of an optional TOML frontmatter block (between `---` delimiters) and a Markdown body.
+Notes consist of an optional TOML frontmatter block (between `+++` delimiters — the Hugo/TOML-frontmatter convention, unlike `---`, which every other tool reads as a YAML signal) and a Markdown body.
 ```markdown
----
++++
 tags = ["rust", "project"]
 pinned = true
 title = "My Note Title"
----
++++
 Body content here.
 ```
+Notes written by jd versions before this change use `---` instead of `+++`; jd still reads them, and transparently migrates them to `+++` the next time it rewrites the note (tag, pin, property, rename, prepend, etc.).
 - Standard timed jots: `YYYY-MM-DD-HHMMSS.md` (or `YYYY-MM-DD-HHMMSS-N.md` when the same second is used more than once)
 - Daily notes: `YYYY-MM-DD.md`
 

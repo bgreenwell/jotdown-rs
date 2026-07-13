@@ -37,9 +37,11 @@ pub fn command_down(entries_dir: &Path, message: &str, tags: Option<Vec<String>>
                 ..Default::default()
             };
             let fm_str = toml::to_string(&frontmatter)?;
-            content.push_str("---\n");
+            content.push_str(helpers::FRONTMATTER_FENCE);
+            content.push('\n');
             content.push_str(&fm_str);
-            content.push_str("---\n\n");
+            content.push_str(helpers::FRONTMATTER_FENCE);
+            content.push_str("\n\n");
         }
     }
     content.push_str(message);

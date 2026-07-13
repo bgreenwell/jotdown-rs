@@ -333,13 +333,11 @@ pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     let content = helpers::read_note_file(&note_path)?;
 
     if raw {
-        if let Some(stripped) = content.strip_prefix("---") {
-            if let Some(rel) = stripped.find("\n---") {
-                print!("{}", stripped[(rel + 4)..].trim_start());
-                return Ok(());
-            }
+        if let Some(body_start) = helpers::frontmatter_body_offset(&content) {
+            print!("{}", content[body_start..].trim_start());
+        } else {
+            print!("{content}");
         }
-        print!("{content}");
         return Ok(());
     }
 
