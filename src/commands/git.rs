@@ -138,6 +138,10 @@ pub fn command_init(git: bool, encrypt: bool) -> Result<()> {
             fs::write(config_path, config_str)?;
             println!("Saved public key to config.toml.");
             println!("\nYour public key (recipient) is: {recipient}");
+
+            // A long-lived process (the interactive shell) must pick up the
+            // newly enabled encryption on its next note operation.
+            helpers::invalidate_crypto_cache();
         }
     }
     Ok(())
@@ -210,6 +214,9 @@ pub fn command_decrypt(force: bool) -> Result<()> {
     if config_path.exists() {
         fs::remove_file(config_path)?;
     }
+    // A long-lived process (the interactive shell) must stop encrypting on
+    // its next note operation now that the identity/config are gone.
+    helpers::invalidate_crypto_cache();
     println!("\nSuccessfully decrypted journal and removed encryption keys.");
     Ok(())
 }

@@ -24,6 +24,17 @@ pub fn command_list(
 ) -> Result<()> {
     let num_to_list = count.unwrap_or(10);
     let notebook_name = helpers::notebook_name(entries_dir);
+
+    // The `--pinned`/`--tasks` filters live in frontmatter, so every note
+    // must be parsed (and, with encryption enabled, decrypted) to know which
+    // ones match. Without a filter, only the newest `num_to_list` notes are
+    // ever displayed, so only those need to be parsed at all.
+    if !pinned && !tasks {
+        let notes = helpers::parse_newest_notes_in_dir(entries_dir, &notebook_name, num_to_list)?;
+        helpers::display_formatted_note_list(notes, format)?;
+        return Ok(());
+    }
+
     let mut notes = helpers::parse_notes_in_dir(entries_dir, &notebook_name)?;
 
     if pinned {
@@ -310,6 +321,14 @@ pub fn command_on(
     Ok(())
 }
 
+/// Whether `show` should emit color escapes: only when stdout is an
+/// interactive terminal and the user hasn't opted out via `NO_COLOR`
+/// (https://no-color.org). Piping into `less`/a file must get plain text.
+fn should_colorize() -> bool {
+    use std::io::IsTerminal;
+    std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none()
+}
+
 pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
     let content = helpers::read_note_file(&note_path)?;
 
@@ -321,26 +340,38 @@ pub fn command_show(note_path: PathBuf, raw: bool) -> Result<()> {
             }
         }
         print!("{content}");
-    } else {
-        use syntect::easy::HighlightLines;
-        use syntect::highlighting::{Style, ThemeSet};
-        use syntect::parsing::SyntaxSet;
-        use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
-
-        // Try syntax highlighting for markdown
-        let ps = SyntaxSet::load_defaults_newlines();
-        let ts = ThemeSet::load_defaults();
-        let syntax = ps.find_syntax_by_extension("md").unwrap();
-        let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
-
-        for line in LinesWithEndings::from(&content) {
-            let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).unwrap();
-            let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
-            print!("{}", escaped);
-        }
-        println!("\x1b[0m"); // Reset colors
+        return Ok(());
     }
+
+    if should_colorize() && highlight_markdown(&content).is_some() {
+        return Ok(());
+    }
+    print!("{content}");
     Ok(())
+}
+
+/// Prints `content` with Markdown syntax highlighting, returning `None`
+/// (having printed nothing) if the syntect data can't be loaded or matched,
+/// so the caller can fall back to plain text instead of panicking.
+fn highlight_markdown(content: &str) -> Option<()> {
+    use syntect::easy::HighlightLines;
+    use syntect::highlighting::{Style, ThemeSet};
+    use syntect::parsing::SyntaxSet;
+    use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+
+    let ps = SyntaxSet::load_defaults_newlines();
+    let ts = ThemeSet::load_defaults();
+    let syntax = ps.find_syntax_by_extension("md")?;
+    let theme = ts.themes.get("base16-ocean.dark")?;
+    let mut h = HighlightLines::new(syntax, theme);
+
+    for line in LinesWithEndings::from(content) {
+        let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).ok()?;
+        let escaped = as_24_bit_terminal_escaped(&ranges[..], false);
+        print!("{}", escaped);
+    }
+    println!("\x1b[0m"); // Reset colors
+    Some(())
 }
 
 pub fn command_delete(note_path: PathBuf, force: bool) -> Result<()> {

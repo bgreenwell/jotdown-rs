@@ -63,7 +63,7 @@ impl Note {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 struct Config {
     /// The public key (`age` recipient) used for encrypting notes.
     recipient: Option<String>,
@@ -221,19 +221,56 @@ pub fn get_editor() -> Result<String> {
     bail!("Could not find a default editor. Please set the $EDITOR environment variable.")
 }
 
-/// Loads the user's `config.toml` from the jd root, or a default when absent.
-fn load_config() -> Result<Config> {
-    let config_path = get_jd_dir_root()?.join("config.toml");
-    if config_path.exists() {
-        Ok(toml::from_str(&fs::read_to_string(config_path)?)?)
-    } else {
-        Ok(Config::default())
+/// Caches `config.toml` and `identity.txt` for the lifetime of the process,
+/// so bulk operations (import, list, find) don't re-stat and re-parse them
+/// on every single note. The interactive shell is a single long-lived
+/// process, so `init --encrypt` and `decrypt` explicitly call
+/// `invalidate_crypto_cache()` after changing either file on disk.
+type CryptoState = (Config, Option<String>);
+static CRYPTO_CACHE: std::sync::OnceLock<std::sync::Mutex<Option<CryptoState>>> =
+    std::sync::OnceLock::new();
+
+/// Clears the cached config/identity state. Must be called after any command
+/// that creates, removes, or otherwise changes `config.toml`/`identity.txt`
+/// (currently `init --encrypt` and `decrypt`), so a long-lived process like
+/// the interactive shell picks up the change on its next note operation.
+pub fn invalidate_crypto_cache() {
+    if let Some(lock) = CRYPTO_CACHE.get() {
+        *lock.lock().unwrap() = None;
     }
+}
+
+/// Returns the cached `(config, identity file contents)` pair, loading and
+/// caching it on first use.
+fn cached_crypto_state() -> Result<(Config, Option<String>)> {
+    let lock = CRYPTO_CACHE.get_or_init(|| std::sync::Mutex::new(None));
+    let mut guard = lock.lock().unwrap();
+    if let Some(state) = &*guard {
+        return Ok(state.clone());
+    }
+
+    let root_dir = get_jd_dir_root()?;
+    let config_path = root_dir.join("config.toml");
+    let config: Config = if config_path.exists() {
+        toml::from_str(&fs::read_to_string(config_path)?)?
+    } else {
+        Config::default()
+    };
+    let identity_path = root_dir.join("identity.txt");
+    let identity_text = if identity_path.exists() {
+        Some(fs::read_to_string(identity_path)?)
+    } else {
+        None
+    };
+
+    let state = (config, identity_text);
+    *guard = Some(state.clone());
+    Ok(state)
 }
 
 /// Returns the configured encryption recipient (public key), if any.
 pub fn encryption_recipient() -> Result<Option<String>> {
-    Ok(load_config()?.recipient)
+    Ok(cached_crypto_state()?.0.recipient)
 }
 
 /// Writes `contents` to `path` readable only by the owner (0o600 on Unix).
@@ -296,7 +333,7 @@ pub fn edit_note_file(path: &Path) -> Result<()> {
 
 /// Writes content to a note file, encrypting it if encryption is enabled.
 pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
-    let config = load_config()?;
+    let (config, _) = cached_crypto_state()?;
 
     if let Some(recipient_str) = config.recipient {
         let recipient: Recipient = recipient_str
@@ -321,12 +358,12 @@ pub fn write_note_file(path: &Path, content: &str) -> Result<()> {
 
 /// Reads content from a note file, decrypting it if necessary.
 pub fn read_note_file(path: &Path) -> Result<String> {
-    let root_dir = get_jd_dir_root()?;
-    let identity_path = root_dir.join("identity.txt");
+    let (_, identity_text) = cached_crypto_state()?;
     let file_bytes = fs::read(path)?;
 
-    if identity_path.exists() && file_bytes.starts_with(b"age-encryption.org") {
-        let identity_str = fs::read_to_string(identity_path)?;
+    if let Some(identity_str) =
+        identity_text.filter(|_| file_bytes.starts_with(b"age-encryption.org"))
+    {
         let identity: Identity = identity_str
             .parse()
             .map_err(|_| anyhow!("Failed to parse identity file."))?;
@@ -398,13 +435,45 @@ pub fn parse_notes_in_dir(dir: &Path, notebook_name: &str) -> Result<Vec<Note>> 
     Ok(notes)
 }
 
-/// Parses a file into a `Note` struct, separating frontmatter from content.
-pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
+/// Parses only the `limit` most recent notes in a notebook directory,
+/// returned newest-first. Since note filenames sort in creation order, the
+/// file list can be trimmed to the requested count *before* parsing (and,
+/// with encryption enabled, decrypting) each one — the difference between
+/// O(limit) and O(n) decrypt operations for a large notebook.
+pub fn parse_newest_notes_in_dir(
+    dir: &Path,
+    notebook_name: &str,
+    limit: usize,
+) -> Result<Vec<Note>> {
+    let files = note_files(dir)?;
+    let start = files.len().saturating_sub(limit);
+    let mut notes = Vec::new();
+    for path in files[start..].iter().rev() {
+        match parse_note_from_file(path, notebook_name) {
+            Ok(note) => notes.push(note),
+            Err(e) => eprintln!(
+                "Warning: skipping {:?}: {e:#}",
+                path.file_name().unwrap_or_default()
+            ),
+        }
+    }
+    Ok(notes)
+}
+
+/// Derives a note's ID from its filename (the filename minus a single
+/// trailing `.md`), without reading or decrypting the file. Used where only
+/// the ID is needed, to avoid a redundant decrypt of the note's content.
+pub fn note_id_from_path(path: &Path) -> String {
     let filename = path.file_name().unwrap().to_string_lossy().to_string();
-    let id = filename
+    filename
         .strip_suffix(".md")
         .unwrap_or(&filename)
-        .to_string();
+        .to_string()
+}
+
+/// Parses a file into a `Note` struct, separating frontmatter from content.
+pub fn parse_note_from_file(path: &Path, notebook_name: &str) -> Result<Note> {
+    let id = note_id_from_path(path);
     let file_content =
         read_note_file(path).with_context(|| format!("Could not read file: {path:?}"))?;
 
@@ -523,10 +592,11 @@ pub fn display_search_results_with_context(notes: Vec<Note>, query: &str) {
         println!("\nNo matches found.");
         return;
     }
+    let query_lower = query.to_lowercase();
     for note in notes {
         let mut first = true;
         for (i, line) in note.content.lines().enumerate() {
-            if line.to_lowercase().contains(&query.to_lowercase()) {
+            if line.to_lowercase().contains(&query_lower) {
                 if first {
                     println!("\n--- {} ({}) ---", note.id, note.notebook);
                     first = false;

@@ -13,7 +13,6 @@ use rustyline_derive::{Helper, Highlighter, Hinter, Validator};
 use crate::helpers;
 
 use super::capture::command_down;
-use super::info::calculate_stats_for_dir;
 
 #[derive(Helper, Hinter, Highlighter, Validator)]
 struct JdHelper {}
@@ -82,11 +81,12 @@ pub fn command_shell() -> Result<()> {
         env::var("JD_ACTIVE_NOTEBOOK").unwrap_or_else(|_| "default".to_string());
 
     let entries_dir = helpers::get_active_entries_dir(Some(active_notebook.clone()))?;
-    let (note_count, _, _) = calculate_stats_for_dir(&entries_dir).unwrap_or((
-        0,
-        Default::default(),
-        Default::default(),
-    ));
+    // A plain file count, not calculate_stats_for_dir: the startup banner
+    // only needs the number of notes, so there's no reason to parse (and,
+    // with encryption enabled, decrypt) every single one just to boot.
+    let note_count = helpers::note_files(&entries_dir)
+        .map(|files| files.len())
+        .unwrap_or(0);
 
     let tips = [
         // Shell Tips

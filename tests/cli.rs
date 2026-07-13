@@ -2562,3 +2562,98 @@ mod refactor_regressions {
         Ok(())
     }
 }
+
+// Regression test for the WI6 crypto-state caching: a long-lived process
+// (the interactive shell) must not keep using a stale encryption state
+// after `init --encrypt` runs mid-session.
+#[cfg(test)]
+mod crypto_cache_regressions {
+    use super::*;
+    use std::io::Write;
+    use std::process::Stdio;
+
+    #[test]
+    fn test_shell_picks_up_encryption_enabled_mid_session() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_jd"));
+        cmd.arg("shell")
+            .env("JD_DIR", &jd_dir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped());
+
+        let mut process = cmd.spawn()?;
+        {
+            let stdin = process.stdin.as_mut().expect("Failed to open stdin");
+            // 1. A plaintext note before encryption is enabled.
+            stdin.write_all(b"note before encryption\n")?;
+            // 2. Enable encryption mid-session, in the same process.
+            stdin.write_all(b"init --encrypt\n")?;
+            // 3. A note after encryption is enabled — must be encrypted on
+            // disk, not silently plaintext due to a stale cached config.
+            stdin.write_all(b"note after encryption\n")?;
+            stdin.write_all(b"exit\n")?;
+        }
+        let output = process.wait_with_output()?;
+        assert!(output.status.success());
+
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        let notes: Vec<_> = fs::read_dir(&entries_dir)?
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .collect();
+        assert_eq!(notes.len(), 2, "expected exactly two notes");
+
+        // Both notes were written in the same single-threaded shell process,
+        // synchronously, one command at a time — the shell never processes
+        // two lines concurrently, so which physical file ended up "first" on
+        // disk (same-second filenames don't sort in creation order; see
+        // test_same_second_no_collision) doesn't matter here. What matters
+        // is that exactly one of the two got encrypted: the one written
+        // after `init --encrypt`. If the cache went stale, either note would
+        // still see the pre-encryption state and neither would be encrypted.
+        let encrypted_count = notes
+            .iter()
+            .filter(|p| fs::read(p).unwrap().starts_with(b"age-encryption.org"))
+            .count();
+        assert_eq!(
+            encrypted_count, 1,
+            "expected exactly one of the two notes to be encrypted (the one written \
+             after `init --encrypt`); a stale cached config would leave both plaintext"
+        );
+        Ok(())
+    }
+}
+
+// Regression test for WI6: `jd show` must not emit ANSI escapes when stdout
+// isn't a terminal (e.g. piped into `less` or redirected to a file).
+#[cfg(test)]
+mod show_output_regressions {
+    use super::*;
+
+    #[test]
+    fn test_show_no_color_escapes_when_piped() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("a plain note")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        // assert_cmd captures stdout via a pipe, so stdout is never a tty —
+        // this exercises the same path a real `jd show X | less` would take.
+        let output = Command::cargo_bin("jd")?
+            .args(["show", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .output()?;
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout)?;
+        assert!(
+            !stdout.contains('\x1b'),
+            "piped `show` output must not contain ANSI escapes:\n{stdout:?}"
+        );
+        assert!(stdout.contains("a plain note"));
+        Ok(())
+    }
+}

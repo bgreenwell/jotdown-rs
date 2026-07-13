@@ -5,7 +5,8 @@ use anyhow::{anyhow, bail, Result};
 use chrono::Local;
 
 use crate::helpers::{
-    self, get_note_path_for_action, get_notebooks_dir, is_valid_notebook_name, parse_note_from_file,
+    self, get_note_path_for_action, get_notebooks_dir, is_valid_notebook_name, note_id_from_path,
+    parse_note_from_file,
 };
 
 pub fn command_append(
@@ -15,8 +16,6 @@ pub fn command_append(
     content: &str,
 ) -> Result<()> {
     let note_path = get_note_path_for_action(entries_dir, id, last)?;
-    let notebook_name = helpers::notebook_name(entries_dir);
-    let note = parse_note_from_file(&note_path, &notebook_name)?;
 
     let mut current_content = helpers::read_note_file(&note_path)?;
     if !current_content.ends_with('\n') {
@@ -28,7 +27,10 @@ pub fn command_append(
     }
 
     helpers::write_note_file(&note_path, &current_content)?;
-    println!("Successfully appended to jot '{}'.", note.id);
+    println!(
+        "Successfully appended to jot '{}'.",
+        note_id_from_path(&note_path)
+    );
     Ok(())
 }
 
@@ -39,8 +41,6 @@ pub fn command_prepend(
     content: &str,
 ) -> Result<()> {
     let note_path = get_note_path_for_action(entries_dir, id, last)?;
-    let notebook_name = helpers::notebook_name(entries_dir);
-    let note = parse_note_from_file(&note_path, &notebook_name)?;
 
     let prefix = if !content.ends_with('\n') {
         format!("{}\n", content)
@@ -68,7 +68,10 @@ pub fn command_prepend(
     raw.insert_str(insert_at, &prefix);
 
     helpers::write_note_file(&note_path, &raw)?;
-    println!("Successfully prepended to jot '{}'.", note.id);
+    println!(
+        "Successfully prepended to jot '{}'.",
+        note_id_from_path(&note_path)
+    );
     Ok(())
 }
 
