@@ -5,6 +5,7 @@ All notable changes to this project are documented in this file. The format is b
 ## [Unreleased]
 
 ### Added
+- `jd done` marks the first incomplete task in a jot as done (`- [ ]` → `- [x]`), so completing a task no longer requires opening an editor by hand.
 - `jd notebook use <name> --shell <bash|zsh|fish|powershell>` emits shell-appropriate syntax for switching notebooks; previously only bash/zsh syntax was ever printed, silently producing invalid output in fish and PowerShell despite Windows being a supported platform.
 
 ### Fixed

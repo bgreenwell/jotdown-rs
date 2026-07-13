@@ -394,6 +394,13 @@ This creates a note formatted as a Markdown task: `- [ ] Set up the new database
 ❯ jd list --tasks
 ```
 
+**3. Mark a task done:**
+
+```sh
+❯ jd done --last
+```
+Marks the first incomplete task in the jot as done: `- [ ] ...` becomes `- [x] ...`. Running it again on a jot with multiple tasks marks the next remaining one.
+
 ### Pinning and unpinning notes
 
 **1. Pin a note:**

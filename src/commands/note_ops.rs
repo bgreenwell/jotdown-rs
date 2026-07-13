@@ -136,6 +136,53 @@ pub fn command_rename(
     Ok(())
 }
 
+/// Marks the first incomplete task (`- [ ] ...`) in a jot's body as done
+/// (`- [x] ...`). Only the checkbox marker changes; the rest of the line
+/// (including any indentation or trailing whitespace) is preserved exactly.
+/// Running it again marks the next remaining incomplete task, if any.
+pub fn command_done(
+    entries_dir: &Path,
+    id_prefix: Option<String>,
+    last: Option<usize>,
+) -> Result<()> {
+    let note_path = get_note_path_for_action(entries_dir, id_prefix, last)?;
+    let raw = helpers::read_note_file(&note_path)?;
+
+    let mut found = false;
+    let mut new_lines: Vec<String> = Vec::with_capacity(raw.lines().count());
+    for line in raw.lines() {
+        if !found {
+            let left_trimmed = line.trim_start();
+            if let Some(rest) = left_trimmed.strip_prefix("- [ ] ") {
+                let indent_len = line.len() - left_trimmed.len();
+                new_lines.push(format!("{}- [x] {}", &line[..indent_len], rest));
+                found = true;
+                continue;
+            }
+        }
+        new_lines.push(line.to_string());
+    }
+
+    if !found {
+        println!(
+            "No incomplete tasks found in jot '{}'.",
+            note_id_from_path(&note_path)
+        );
+        return Ok(());
+    }
+
+    let mut new_content = new_lines.join("\n");
+    if raw.ends_with('\n') {
+        new_content.push('\n');
+    }
+    helpers::write_note_file(&note_path, &new_content)?;
+    println!(
+        "Marked a task as done in jot '{}'.",
+        note_id_from_path(&note_path)
+    );
+    Ok(())
+}
+
 pub fn command_daily(entries_dir: &Path, message: &str) -> Result<()> {
     let today = Local::now().format("%Y-%m-%d").to_string();
     let filename = format!("{}.md", today);

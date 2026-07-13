@@ -39,8 +39,8 @@ impl Completer for JdHelper {
 
             let all_commands = vec![
                 "list", "find", "new", "task", "todo", "t", "today", "week", "tags", "notebook",
-                "pin", "unpin", "edit", "show", "delete", "info", "use", "exit", "quit", "append",
-                "prepend", "move", "rename", "daily",
+                "pin", "unpin", "done", "edit", "show", "delete", "info", "use", "exit", "quit",
+                "append", "prepend", "move", "rename", "daily",
             ];
 
             for cmd in all_commands {

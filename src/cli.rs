@@ -122,6 +122,11 @@ pub enum Commands {
         #[command(flatten)]
         target: PositionalTarget,
     },
+    /// Mark the next incomplete task in a jot as done.
+    Done {
+        #[command(flatten)]
+        target: PositionalTarget,
+    },
     /// Unpin a jot.
     Unpin {
         #[command(flatten)]

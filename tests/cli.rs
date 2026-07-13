@@ -2834,3 +2834,120 @@ mod frontmatter_fence_regressions {
         Ok(())
     }
 }
+
+// Tests for the `jd done` command (mark a task complete).
+#[cfg(test)]
+mod done_command {
+    use super::*;
+
+    #[test]
+    fn test_done_marks_first_incomplete_task() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .args(["task", "buy milk"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("- [ ] buy milk"));
+
+        Command::cargo_bin("jd")?
+            .args(["done", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Marked a task as done"));
+
+        Command::cargo_bin("jd")?
+            .args(["show", "--last", "--raw"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("- [x] buy milk"))
+            .stdout(predicate::str::contains("- [ ]").not());
+        Ok(())
+    }
+
+    #[test]
+    fn test_done_reports_when_no_incomplete_tasks() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("just a plain note, not a task")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["done", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("No incomplete tasks found"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_done_preserves_multiline_task_indentation() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+
+        Command::cargo_bin("jd")?
+            .arg("task")
+            .arg("line 1\nline 2")
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        Command::cargo_bin("jd")?
+            .args(["done", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        let content = fs::read_to_string(fs::read_dir(&entries_dir)?.next().unwrap()?.path())?;
+        assert!(
+            content.contains("- [x] line 1\n      line 2"),
+            "continuation line indentation must be preserved:\n{content}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_done_only_touches_first_of_several_tasks() -> TestResult {
+        let (_temp_dir, jd_dir) = setup();
+        let entries_dir = jd_dir.join("notebooks").join("default");
+        fs::create_dir_all(&entries_dir)?;
+        fs::write(
+            entries_dir.join("2026-01-01-090000.md"),
+            "- [ ] first task\n- [ ] second task\n",
+        )?;
+
+        Command::cargo_bin("jd")?
+            .args(["done", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+
+        let content = fs::read_to_string(entries_dir.join("2026-01-01-090000.md"))?;
+        assert!(content.contains("- [x] first task"));
+        assert!(content.contains("- [ ] second task"));
+
+        // Running it again completes the remaining task.
+        Command::cargo_bin("jd")?
+            .args(["done", "--last"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success();
+        let content = fs::read_to_string(entries_dir.join("2026-01-01-090000.md"))?;
+        assert!(content.contains("- [x] first task"));
+        assert!(content.contains("- [x] second task"));
+        Ok(())
+    }
+}

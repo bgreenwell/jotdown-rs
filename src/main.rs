@@ -63,6 +63,9 @@ pub fn run_command(command: Commands, entries_dir: PathBuf) -> Result<()> {
         Commands::Pin { target } => {
             commands::command_pin(&entries_dir, target.id_prefix, target.last)?
         }
+        Commands::Done { target } => {
+            commands::command_done(&entries_dir, target.id_prefix, target.last)?
+        }
         Commands::Unpin { target } => {
             commands::command_unpin(&entries_dir, target.id_prefix, target.last)?
         }

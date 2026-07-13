@@ -19,7 +19,9 @@ pub use clean::command_clean;
 pub use export_import::{command_export, command_import};
 pub use git::{command_decrypt, command_init, command_sync};
 pub use info::command_info;
-pub use note_ops::{command_append, command_daily, command_move, command_prepend, command_rename};
+pub use note_ops::{
+    command_append, command_daily, command_done, command_move, command_prepend, command_rename,
+};
 pub use notebook::command_notebook;
 pub use pin::{command_pin, command_unpin};
 pub use property::command_property;
