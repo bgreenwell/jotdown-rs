@@ -26,6 +26,7 @@ All notable changes to this project are documented in this file. The format is b
 - Internal refactor: the repeated ID/`--last` clap argument blocks are now shared structs (`PositionalTarget`, `IdFlagTarget`, `IdPrefixFlagTarget`); the note-save-to-disk pattern is now `Note::save()`; the four hand-rolled confirmation prompts share a `confirm()` helper; `commands.rs` is now a `commands/` module split by feature area. No user-facing behavior change.
 - `jd show` (without `--raw`) no longer emits ANSI color escapes when stdout isn't a terminal (e.g. piped into `less` or redirected to a file), and no longer panics if the bundled syntax/theme data fails to load — it falls back to plain text instead.
 - `jd list` without `--pinned`/`--tasks` now parses (and, with encryption enabled, decrypts) only the notes it's about to display, instead of every note in the notebook. The interactive shell's startup banner counts notes without parsing them at all. Config and encryption-identity lookups are now cached per process instead of re-read from disk on every note read/write.
+- `jd sync` now commits using your own git identity (global or local config, signing keys) when one is configured, instead of always overriding it with a synthetic `jd <jd@localhost>` author. The synthetic identity is now only a fallback for when git has no identity configured at all.
 
 ## [0.2.1] - 2026-06-02
 

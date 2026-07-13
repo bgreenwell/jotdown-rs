@@ -299,6 +299,65 @@ fn test_git_init_and_sync() -> TestResult {
     Ok(())
 }
 
+/// Regression test: `jd sync` must commit as the user's own configured git
+/// identity, not silently override it with a synthetic "jd <jd@localhost>"
+/// author, when the user has one configured (even just locally).
+#[test]
+fn test_sync_preserves_configured_git_identity() -> TestResult {
+    let (temp_dir, jd_dir) = setup();
+
+    Command::cargo_bin("jd")?
+        .args(["init", "--git"])
+        .env("JD_DIR", &jd_dir)
+        .assert()
+        .success();
+
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .current_dir(&jd_dir)
+            .args(args)
+            .output()
+            .expect("git failed")
+    };
+    assert!(git(&["config", "user.name", "Real User"]).status.success());
+    assert!(git(&["config", "user.email", "real.user@example.com"])
+        .status
+        .success());
+
+    // `sync` also pushes, so it needs a remote to push to.
+    let remote = temp_dir.path().join("remote.git");
+    assert!(std::process::Command::new("git")
+        .args(["init", "--bare"])
+        .arg(&remote)
+        .output()?
+        .status
+        .success());
+    assert!(git(&["remote", "add", "origin", remote.to_str().unwrap()])
+        .status
+        .success());
+
+    Command::cargo_bin("jd")?
+        .arg("a synced note")
+        .env("JD_DIR", &jd_dir)
+        .assert()
+        .success();
+
+    Command::cargo_bin("jd")?
+        .arg("sync")
+        .env("JD_DIR", &jd_dir)
+        .assert()
+        .success();
+
+    let author = String::from_utf8(git(&["log", "-1", "--format=%an <%ae>"]).stdout)?;
+    assert_eq!(
+        author.trim(),
+        "Real User <real.user@example.com>",
+        "sync must commit as the user's configured identity, not jd's synthetic fallback"
+    );
+
+    Ok(())
+}
+
 // Test module for notebooks
 #[cfg(test)]
 mod notebooks {

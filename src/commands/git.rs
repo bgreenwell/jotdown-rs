@@ -249,19 +249,33 @@ pub fn command_sync() -> Result<()> {
     )?;
 
     let commit_message = format!("jd sync: {}", Local::now().to_rfc2822());
-    let commit_output = Command::new("git")
+    // Use the user's own git identity (global/local config, signing keys,
+    // hooks) by default. Only fall back to a synthetic jd identity if the
+    // user truly has none configured anywhere — retrying is simpler and more
+    // correct than trying to replicate git's own config-resolution rules.
+    let mut commit_output = Command::new("git")
         .current_dir(&root_dir)
-        .args([
-            "-c",
-            "user.name=jd",
-            "-c",
-            "user.email=jd@localhost",
-            "commit",
-            "-m",
-            &commit_message,
-        ])
+        .args(["commit", "-m", &commit_message])
         .output()
         .map_err(git_not_found)?;
+
+    if !commit_output.status.success()
+        && String::from_utf8_lossy(&commit_output.stderr).contains("Please tell me who you are")
+    {
+        commit_output = Command::new("git")
+            .current_dir(&root_dir)
+            .args([
+                "-c",
+                "user.name=jd",
+                "-c",
+                "user.email=jd@localhost",
+                "commit",
+                "-m",
+                &commit_message,
+            ])
+            .output()
+            .map_err(git_not_found)?;
+    }
 
     if commit_output.status.success() {
         println!("Committed changes with message: '{commit_message}'");
