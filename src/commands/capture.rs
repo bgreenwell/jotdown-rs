@@ -155,10 +155,10 @@ pub fn command_edit(note_path: PathBuf) -> Result<()> {
     let editor = helpers::get_editor()?;
     println!(
         "Opening {:?} in {}...",
-        &note_path.file_name().unwrap(),
-        &editor
+        note_path.file_name().unwrap(),
+        editor
     );
     helpers::edit_note_file(&note_path)?;
-    println!("Finished editing {:?}.", &note_path.file_name().unwrap());
+    println!("Finished editing {:?}.", note_path.file_name().unwrap());
     Ok(())
 }
