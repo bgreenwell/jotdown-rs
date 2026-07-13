@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file. The format is b
 
 ## [Unreleased]
 
+### Added
+- `jd notebook use <name> --shell <bash|zsh|fish|powershell>` emits shell-appropriate syntax for switching notebooks; previously only bash/zsh syntax was ever printed, silently producing invalid output in fish and PowerShell despite Windows being a supported platform.
+
 ### Fixed
 - `jd new` and `jd edit` now decrypt notes to a private temp file for editing and re-encrypt afterward; previously the editor was shown raw ciphertext and saved notes were silently left unencrypted.
 - The encryption identity file is now created readable only by the owner (0600) instead of world-readable.

@@ -235,10 +235,17 @@ An asterisk (`*`) indicates the active notebook.
 ```
 
 **4. Switch the active notebook:**
-Since a child process cannot modify the parent shell's environment, use `eval` to update the `JD_ACTIVE_NOTEBOOK` variable.
+Since a child process cannot modify the parent shell's environment, evaluate jd's output to update the `JD_ACTIVE_NOTEBOOK` variable. `jd notebook use` defaults to bash/zsh syntax; pass `--shell` for other shells.
 
 ```sh
+# bash / zsh
 ❯ eval $(jd notebook use project-icarus)
+
+# fish
+❯ jd notebook use project-icarus --shell fish | source
+
+# PowerShell
+❯ jd notebook use project-icarus --shell powershell | Invoke-Expression
 ```
 
 **5. Perform a single action in another notebook:**

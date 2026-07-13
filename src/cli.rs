@@ -42,6 +42,17 @@ pub enum OutputFormat {
     Csv,
 }
 
+/// The shell syntax `jd notebook use` should emit its environment-variable
+/// assignment in.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+#[value(rename_all = "lower")]
+pub enum ShellKind {
+    Bash,
+    Zsh,
+    Fish,
+    Powershell,
+}
+
 /// Targets a note by a positional ID prefix or the `--last` flag.
 /// Used by commands where the ID prefix reads naturally as the first
 /// argument (`pin`, `unpin`, `edit`, `show`, `delete`).
@@ -319,11 +330,16 @@ pub enum NotebookAction {
     List,
     /// Print the command to switch the active notebook for the current shell session.
     ///
-    /// Usage: eval $(jd notebook use <NAME>)
+    /// Usage: eval $(jd notebook use <NAME>)              # bash/zsh
+    ///        jd notebook use <NAME> --shell fish | source # fish
+    ///        jd notebook use <NAME> --shell powershell | Invoke-Expression
     Use {
         /// The name of the notebook to switch to.
         #[arg(required = true)]
         name: String,
+        /// The shell syntax to emit. Defaults to bash/zsh syntax.
+        #[arg(long, value_enum)]
+        shell: Option<ShellKind>,
     },
     /// Show the currently active notebook.
     Status,

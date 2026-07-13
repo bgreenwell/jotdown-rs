@@ -428,6 +428,25 @@ mod notebooks {
                 "export JD_ACTIVE_NOTEBOOK='project-x'",
             ));
 
+        // `--shell` emits shell-appropriate syntax instead of bash/zsh only.
+        Command::cargo_bin("jd")?
+            .args(["notebook", "use", "project-x", "--shell", "fish"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(
+                "set -gx JD_ACTIVE_NOTEBOOK 'project-x'",
+            ));
+
+        Command::cargo_bin("jd")?
+            .args(["notebook", "use", "project-x", "--shell", "powershell"])
+            .env("JD_DIR", &jd_dir)
+            .assert()
+            .success()
+            .stdout(predicate::str::contains(
+                "$env:JD_ACTIVE_NOTEBOOK = 'project-x'",
+            ));
+
         Ok(())
     }
 

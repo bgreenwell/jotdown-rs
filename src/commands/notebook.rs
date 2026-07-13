@@ -3,14 +3,14 @@ use std::fs;
 
 use anyhow::{bail, Result};
 
-use crate::cli::{NotebookAction, NotebookArgs};
+use crate::cli::{NotebookAction, NotebookArgs, ShellKind};
 use crate::helpers::{get_notebooks_dir, is_valid_notebook_name};
 
 pub fn command_notebook(args: NotebookArgs) -> Result<()> {
     match args.action {
         NotebookAction::New { name } => command_notebook_new(&name)?,
         NotebookAction::List => command_notebook_list()?,
-        NotebookAction::Use { name } => command_notebook_use(&name)?,
+        NotebookAction::Use { name, shell } => command_notebook_use(&name, shell)?,
         NotebookAction::Status => command_notebook_status()?,
     }
     Ok(())
@@ -56,7 +56,7 @@ fn command_notebook_list() -> Result<()> {
     Ok(())
 }
 
-fn command_notebook_use(name: &str) -> Result<()> {
+fn command_notebook_use(name: &str, shell: Option<ShellKind>) -> Result<()> {
     if !is_valid_notebook_name(name) {
         bail!("Invalid notebook name: '{}'.", name);
     }
@@ -72,9 +72,14 @@ fn command_notebook_use(name: &str) -> Result<()> {
         );
     }
 
-    // Prints a shell command for the user to evaluate. Single quotes prevent
-    // any shell interpretation of the notebook name.
-    println!("export JD_ACTIVE_NOTEBOOK='{name}'");
+    // Prints a shell command for the user to evaluate. Quoting prevents any
+    // shell interpretation of the notebook name (is_valid_notebook_name
+    // already rejects the characters that would otherwise need escaping).
+    match shell.unwrap_or(ShellKind::Bash) {
+        ShellKind::Bash | ShellKind::Zsh => println!("export JD_ACTIVE_NOTEBOOK='{name}'"),
+        ShellKind::Fish => println!("set -gx JD_ACTIVE_NOTEBOOK '{name}'"),
+        ShellKind::Powershell => println!("$env:JD_ACTIVE_NOTEBOOK = '{name}'"),
+    }
     Ok(())
 }
 
