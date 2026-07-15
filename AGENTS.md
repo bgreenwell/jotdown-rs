@@ -34,6 +34,13 @@ A minimalist command-line jotting utility written in Rust, designed for fast cap
 - **Lint**: `cargo clippy -- -D warnings`
 - **Format**: `cargo fmt`
 
+### Branch model
+`devel` is the default and integration branch; `main` tracks releases.
+Never commit directly to either — branch off `devel` (`feature/...`,
+`fix/...`, `chore/...`), open a PR to `devel`, and merge after CI is green.
+Releases merge `devel` into `main` and tag `vX.Y.Z` there (see
+`RELEASE_CHECKLIST.md`).
+
 ## Development conventions
 
 ### Coding style

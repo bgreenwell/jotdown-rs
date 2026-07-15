@@ -1,0 +1,58 @@
+# GitHub Dependabot configuration for jotdown-rs
+# See: https://docs.github.com/en/code-security/dependabot
+#
+# Added 2026-07-15 - the project has multiple tagged releases now,
+# so automated dependency PRs are worth the noise.
+
+version: 2
+updates:
+  # Rust dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "bgreenwell"
+    assignees:
+      - "bgreenwell"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "rust"
+    # Group minor/patch updates to reduce PR noise. Majors are deliberately
+    # NOT grouped: bundling a breaking change in with 19 safe ones means one
+    # bad major blocks the whole group instead of just itself. Ungrouped
+    # majors fall through to their own individual PRs instead.
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 2
+    reviewers:
+      - "bgreenwell"
+    assignees:
+      - "bgreenwell"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
